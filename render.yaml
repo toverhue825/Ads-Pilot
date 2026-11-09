@@ -1,0 +1,57 @@
+# Render blueprint: one always-on web service with a small persistent disk for the database.
+# In Render: New → Blueprint → pick this repo, then fill in the values marked "sync: false".
+services:
+  - type: web
+    name: ads-pilot
+    runtime: docker
+    plan: starter            # always-on; the free plan sleeps, which would stop the hourly sync and emails
+    healthCheckPath: /healthz
+    disk:
+      name: ads-data
+      mountPath: /app/data
+      sizeGB: 1
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DB_PATH
+        value: /app/data/ads.db
+      - key: TZ
+        value: America/Chicago   # daily email goes out at DIGEST_HOUR in this time zone
+      - key: APP_SECRET
+        generateValue: true
+      - key: DASHBOARD_PASSWORD  # at least 12 characters
+        sync: false
+
+      # Facebook: switch DATA_SOURCE to "meta" and fill in the two META values once access is set up.
+      - key: DATA_SOURCE
+        value: sample
+      - key: META_ACCESS_TOKEN
+        sync: false
+      - key: META_AD_ACCOUNT_IDS
+        sync: false
+
+      # Claude (AI review)
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: AI_EFFORT
+        value: medium
+
+      # Email (Resend)
+      - key: SMTP_HOST
+        value: smtp.resend.com
+      - key: SMTP_PORT
+        value: "587"
+      - key: SMTP_USER
+        value: resend
+      - key: SMTP_PASS
+        sync: false
+      - key: EMAIL_FROM
+        value: Ads Pilot <onboarding@resend.dev>
+      - key: EMAIL_TO
+        sync: false
+
+      # Starting limits for new brands (each brand's limits are then edited in the dashboard)
+      - key: TARGET_CPL
+        value: "45"
+      - key: DAILY_SPEND_CAP
+        value: "600"

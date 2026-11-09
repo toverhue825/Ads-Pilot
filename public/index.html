@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ads Pilot</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header class="hero">
+    <div class="wrap">
+      <div class="topbar">
+        <div class="logo"><span class="logo-mark">✈</span> Ads Pilot</div>
+        <span class="pill" id="source"></span>
+        <div class="spacer"></div>
+        <span class="pill" id="synced">Syncing…</span>
+        <form method="post" action="/logout"><button class="btn btn-glass" type="submit">Sign out</button></form>
+      </div>
+      <h1 id="greeting">Hello 👋</h1>
+      <p id="headline">Loading your numbers…</p>
+      <div class="hero-actions">
+        <label class="brand-pick"><span class="sr-only">Brand</span><select id="accountSel" aria-label="Brand"></select></label>
+        <div class="seg" role="group" aria-label="Date range">
+          <button data-days="7" aria-pressed="true">Last 7 days</button>
+          <button data-days="14" aria-pressed="false">14 days</button>
+          <button data-days="30" aria-pressed="false">30 days</button>
+        </div>
+        <button class="btn btn-light" id="syncBtn">↻ Sync now</button>
+        <button class="btn btn-glass" id="limitsBtn">⚙ Targets &amp; limits</button>
+        <a class="btn btn-glass" href="/email/preview" target="_blank">✉ Preview email</a>
+        <button class="btn btn-glass" id="emailBtn">Send email now</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="wrap grid">
+    <section class="kpis" id="kpis" aria-label="Key numbers"></section>
+
+    <section class="card ai-card" id="aiCard" aria-label="AI review"></section>
+
+    <div class="grid cols">
+      <div class="grid">
+        <section class="charts">
+          <div class="card">
+            <div class="card-head"><h2>Leads per day</h2><span class="sub" id="leadsSub"></span></div>
+            <div class="chart" id="leadsChart"></div>
+          </div>
+          <div class="card">
+            <div class="card-head"><h2>Cost per lead</h2><span class="sub">Dashed line = your target</span></div>
+            <div class="chart" id="cplChart"></div>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="card-head"><h2>Campaigns</h2><span class="sub" id="campSub"></span></div>
+          <div class="table-wrap"><table class="data" id="campaigns"></table></div>
+        </section>
+      </div>
+
+      <aside class="grid">
+        <section class="card">
+          <div class="card-head"><h2>Suggestions</h2><span class="sub" id="sugCount"></span></div>
+          <div id="suggestions"></div>
+        </section>
+        <section class="card">
+          <div class="card-head"><h2>Recent activity</h2></div>
+          <ul class="activity" id="activity"></ul>
+        </section>
+      </aside>
+    </div>
+  </main>
+
+  <dialog id="limits" class="sheet">
+    <form method="dialog" class="sheet-head">
+      <div>
+        <h2>Targets &amp; limits</h2>
+        <p class="muted">Each brand gets its own goals. Suggestions update as soon as you save.</p>
+      </div>
+      <button class="btn btn-ghost" aria-label="Close">✕</button>
+    </form>
+    <div id="limitsBody"></div>
+  </dialog>
+
+  <div class="toast" id="toast" role="status"></div>
+  <script src="/app.js" type="module"></script>
+</body>
+</html>

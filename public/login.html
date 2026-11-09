@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ads Pilot · Sign in</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body class="login-body">
+  <form class="login-card" method="post" action="/login">
+    <div class="logo"><span class="logo-mark" style="background:linear-gradient(120deg,#2a78d6,#6250d6);color:#fff">✈</span> Ads Pilot</div>
+    <h1>Welcome back 👋</h1>
+    <p class="muted" style="margin:0">Your Facebook ads, leads and suggestions in one place.</p>
+    <div id="err"></div>
+    <label class="field"><span>Your name</span><input name="name" required maxlength="60" autocomplete="name" placeholder="So we know who approved what"></label>
+    <label class="field"><span>Team password</span><input name="password" type="password" required autocomplete="current-password"></label>
+    <button class="btn btn-primary btn-lg" type="submit">Sign in</button>
+  </form>
+  <script>
+    const err = new URLSearchParams(location.search).get('error');
+    if (err) document.getElementById('err').innerHTML = err === 'locked'
+      ? '<p class="error">Too many wrong tries. Wait 15 minutes and try again.</p>'
+      : '<p class="error">That password didn’t match. Try again.</p>';
+  </script>
+</body>
+</html>

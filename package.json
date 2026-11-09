@@ -1,0 +1,20 @@
+{
+  "name": "ads-pilot",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Facebook ads dashboard: KPIs, suggestions, email approvals, and Meta Marketing API changes.",
+  "type": "module",
+  "engines": {
+    "node": ">=22.13"
+  },
+  "scripts": {
+    "start": "node --disable-warning=ExperimentalWarning src/server.js",
+    "check-meta": "node --disable-warning=ExperimentalWarning src/check-meta.js",
+    "dev": "node --disable-warning=ExperimentalWarning --watch src/server.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^1.6.0",
+    "express": "^4.21.2",
+    "nodemailer": "^6.9.16"
+  }
+}
