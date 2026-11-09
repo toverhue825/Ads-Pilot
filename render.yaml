@@ -36,6 +36,16 @@ services:
       - key: AI_EFFORT
         value: medium
 
+      # Google: Drive content library + Business Profile (see README → Google setup)
+      - key: GOOGLE_SERVICE_ACCOUNT_JSON
+        sync: false
+      - key: GOOGLE_DRIVE_FOLDER_ID
+        sync: false
+      - key: GOOGLE_OAUTH_CLIENT_ID
+        sync: false
+      - key: GOOGLE_OAUTH_CLIENT_SECRET
+        sync: false
+
       # Email (Resend)
       - key: SMTP_HOST
         value: smtp.resend.com

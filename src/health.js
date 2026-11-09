@@ -7,6 +7,8 @@ export const COMPONENTS = {
   facebook: 'Facebook connection',
   ai: 'AI review (Claude)',
   email: 'Email sending',
+  drive: 'Google Drive content library',
+  gbp: 'Google Business Profile',
 };
 
 const read = (name) => { try { return JSON.parse(getMeta(`health_${name}`) ?? 'null'); } catch { return null; } };
@@ -29,6 +31,14 @@ export function explain(name, err) {
     if (/api key|authentication/i.test(msg)) return { msg: 'Anthropic rejected the API key.', fix: 'Create a new key at console.anthropic.com → API Keys and update ANTHROPIC_API_KEY in Render.', urgent: true };
     if (/credit|billing|balance/i.test(msg)) return { msg: 'The Anthropic account is out of credit.', fix: 'Add credit or billing at console.anthropic.com → Billing.', urgent: true };
     return { msg: `The weekly AI review failed: ${msg.slice(0, 200)}`, fix: 'Try "Write this week\'s review" on the dashboard. If it keeps failing, check the Anthropic console.', urgent: false };
+  }
+  if (name === 'drive') {
+    if (err?.status === 404 || /not found/i.test(msg)) return { msg: "The dashboard can't see the Drive folder.", fix: 'Share the folder with the service account email shown in the Library tab (Viewer is enough), and check GOOGLE_DRIVE_FOLDER_ID in Render.', urgent: true };
+    return { msg: `Drive sync failed: ${msg.slice(0, 200)}`, fix: 'Check GOOGLE_SERVICE_ACCOUNT_JSON and that the Drive API is enabled in your Google Cloud project.', urgent: false };
+  }
+  if (name === 'gbp') {
+    if (/invalid_grant|revoked|expired/i.test(msg)) return { msg: 'The Google Business Profile connection expired or was removed.', fix: 'Open the Google Business tab and click Connect again.', urgent: true };
+    return { msg: msg.slice(0, 240), fix: 'If this mentions access or quota, Google may not have approved API access yet. Otherwise click Sync in the Google Business tab to retry.', urgent: false };
   }
   if (name === 'email') {
     return { msg: msg.slice(0, 240), fix: 'Check SMTP_PASS (your Resend key) and EMAIL_FROM / EMAIL_TO in Render. Resend → Logs shows why a message was refused.', urgent: true };

@@ -20,27 +20,71 @@
       <p id="headline">Loading your numbers…</p>
       <div class="hero-actions">
         <label class="brand-pick"><span class="sr-only">Brand</span><select id="accountSel" aria-label="Brand"></select></label>
-        <div class="seg" role="group" aria-label="Date range">
+        <div class="seg" role="group" aria-label="Date range" data-only="ads">
           <button data-days="7" aria-pressed="true">Last 7 days</button>
           <button data-days="14" aria-pressed="false">14 days</button>
           <button data-days="30" aria-pressed="false">30 days</button>
         </div>
-        <button class="btn btn-light" id="syncBtn">↻ Sync now</button>
+        <button class="btn btn-light" id="syncBtn" data-only="ads">↻ Sync now</button>
         <button class="btn btn-glass" id="limitsBtn">⚙ Targets &amp; limits</button>
-        <a class="btn btn-glass" href="/email/preview" target="_blank">✉ Preview email</a>
-        <button class="btn btn-glass" id="emailBtn">Send email now</button>
+        <a class="btn btn-glass" href="/email/preview" target="_blank" data-only="ads">✉ Preview email</a>
+        <button class="btn btn-glass" id="emailBtn" data-only="ads">Send email now</button>
       </div>
+      <nav class="tabs" role="tablist" aria-label="Sections">
+        <button role="tab" data-tab="ads">📊 Ads</button>
+        <button role="tab" data-tab="studio">✎ Ad Studio</button>
+        <button role="tab" data-tab="videos">🎬 Videos</button>
+        <button role="tab" data-tab="library">🗂 Library</button>
+        <button role="tab" data-tab="google">📍 Google Business</button>
+      </nav>
     </div>
   </header>
 
   <main class="wrap grid">
     <div id="health" role="alert" hidden></div>
 
-    <section class="kpis" id="kpis" aria-label="Key numbers"></section>
+    <!-- ===================== ADS ===================== -->
+    <div class="grid" data-panel="ads">
+      <section class="kpis" id="kpis" aria-label="Key numbers"></section>
+      <section class="card ai-card" id="aiCard" aria-label="AI review"></section>
 
-    <section class="card ai-card" id="aiCard" aria-label="AI review"></section>
+      <div class="grid cols">
+        <div class="grid">
+          <section class="charts">
+            <div class="card">
+              <div class="card-head"><h2>Leads per day</h2><span class="sub" id="leadsSub"></span></div>
+              <div class="chart" id="leadsChart"></div>
+            </div>
+            <div class="card">
+              <div class="card-head"><h2>Cost per lead</h2><span class="sub">Dashed line = your target</span></div>
+              <div class="chart" id="cplChart"></div>
+            </div>
+          </section>
+          <section class="card">
+            <div class="card-head"><h2>Campaigns</h2><span class="sub" id="campSub"></span></div>
+            <div class="table-wrap"><table class="data" id="campaigns"></table></div>
+          </section>
+        </div>
+        <aside class="grid">
+          <section class="card">
+            <div class="card-head"><h2>Suggestions</h2><span class="sub" id="sugCount"></span></div>
+            <div id="suggestions"></div>
+          </section>
+          <section class="card">
+            <div class="card-head"><h2>Recent activity</h2></div>
+            <ul class="activity" id="activity"></ul>
+          </section>
+        </aside>
+      </div>
 
-    <section class="card studio" id="studio" aria-labelledby="studioTitle">
+      <section aria-labelledby="trendsTitle">
+        <div class="section-head"><h2 id="trendsTitle">Trends</h2><span class="sub">Daily, for the date range above. Hover a line for that day's number.</span></div>
+        <div class="trends" id="trends"></div>
+      </section>
+    </div>
+
+    <!-- ===================== AD STUDIO ===================== -->
+    <section class="card studio" id="studio" data-panel="studio" hidden aria-labelledby="studioTitle">
       <div class="ai-head">
         <span class="ai-badge" aria-hidden="true">✎</span>
         <div><h2 id="studioTitle">Ad Studio</h2><div class="sub">Claude researches your competitors and writes original ads to beat them</div></div>
@@ -73,41 +117,76 @@
       <div id="studioOut"></div>
     </section>
 
-    <div class="grid cols">
-      <div class="grid">
-        <section class="charts">
-          <div class="card">
-            <div class="card-head"><h2>Leads per day</h2><span class="sub" id="leadsSub"></span></div>
-            <div class="chart" id="leadsChart"></div>
-          </div>
-          <div class="card">
-            <div class="card-head"><h2>Cost per lead</h2><span class="sub">Dashed line = your target</span></div>
-            <div class="chart" id="cplChart"></div>
-          </div>
-        </section>
-
-        <section class="card">
-          <div class="card-head"><h2>Campaigns</h2><span class="sub" id="campSub"></span></div>
-          <div class="table-wrap"><table class="data" id="campaigns"></table></div>
-        </section>
-      </div>
-
-      <aside class="grid">
-        <section class="card">
-          <div class="card-head"><h2>Suggestions</h2><span class="sub" id="sugCount"></span></div>
-          <div id="suggestions"></div>
-        </section>
-        <section class="card">
-          <div class="card-head"><h2>Recent activity</h2></div>
-          <ul class="activity" id="activity"></ul>
-        </section>
-      </aside>
+    <!-- ===================== VIDEOS ===================== -->
+    <div class="grid" data-panel="videos" hidden>
+      <section class="card studio">
+        <div class="ai-head">
+          <span class="ai-badge" aria-hidden="true">🎬</span>
+          <div><h2>Video Studio</h2><div class="sub">A shot-by-shot plan built from your library, plus what still needs filming</div></div>
+        </div>
+        <form id="videoForm" class="studio-form">
+          <label class="field wide"><span>Video idea or ad angle</span>
+            <input name="idea" list="angleList" required placeholder="e.g. Time-lapse of a 40×60 shop going up in a week, or pick an Ad Studio angle"></label>
+          <datalist id="angleList"></datalist>
+          <label class="field"><span>Offer to feature <em>(optional)</em></span><input name="offer" placeholder="e.g. Free itemized quote"></label>
+          <label class="field"><span>Length &amp; format</span>
+            <div style="display:flex;gap:8px"><select name="length"><option value="15">15 sec</option><option value="30" selected>30 sec</option><option value="45">45 sec</option><option value="60">60 sec</option></select>
+            <select name="format"><option value="vertical">Vertical 9:16 (Reels/Stories)</option><option value="square">Square 1:1 (Feed)</option></select></div></label>
+          <div class="studio-actions wide"><span class="muted small" id="videoNote">About 30–60 seconds and a few cents. Uses clips already in your library where they fit.</span>
+            <button class="btn btn-ai" type="submit" id="videoGo">✦ Plan the video</button></div>
+        </form>
+      </section>
+      <section>
+        <div class="section-head"><h2>Production board</h2><span class="sub">Move each video along as it gets made</span></div>
+        <div class="board" id="board"></div>
+      </section>
+      <section class="card" id="videoDetail" hidden></section>
     </div>
 
-    <section aria-labelledby="trendsTitle">
-      <div class="section-head"><h2 id="trendsTitle">Trends</h2><span class="sub">Daily, for the date range above. Hover a line for that day's number.</span></div>
-      <div class="trends" id="trends"></div>
-    </section>
+    <!-- ===================== LIBRARY ===================== -->
+    <div class="grid" data-panel="library" hidden>
+      <section class="card">
+        <div class="card-head" style="flex-wrap:wrap">
+          <h2>Content library</h2><span class="sub" id="libStatus"></span>
+          <span class="spacer"></span>
+          <button class="btn btn-ghost" id="libSync" type="button">↻ Refresh from Drive</button>
+        </div>
+        <div id="libSetup"></div>
+        <div class="lib-tools">
+          <input id="libSearch" type="search" placeholder="Search: garage, drone, interior, customer…" aria-label="Search library">
+          <div class="seg seg-light" role="group" aria-label="File type">
+            <button data-kind="" aria-pressed="true">All</button><button data-kind="photo" aria-pressed="false">Photos</button><button data-kind="video" aria-pressed="false">Videos</button>
+          </div>
+        </div>
+        <div class="lib-grid" id="libGrid"></div>
+      </section>
+    </div>
+
+    <!-- ===================== GOOGLE BUSINESS ===================== -->
+    <div class="grid" data-panel="google" hidden>
+      <div id="gbpSetup"></div>
+      <section class="kpis" id="gbpStats" aria-label="Google Business Profile numbers"></section>
+      <div class="grid cols">
+        <section class="card">
+          <div class="card-head"><h2>Reviews</h2><span class="sub" id="gbpReviewSub"></span></div>
+          <div id="gbpReviews"></div>
+        </section>
+        <aside class="grid">
+          <section class="card">
+            <div class="card-head"><h2>New Google post</h2></div>
+            <form id="gbpPostForm" class="studio-form" style="grid-template-columns:1fr;margin-top:0">
+              <label class="field"><span>What's it about?</span><input name="topic" placeholder="e.g. Just finished a 50×80 equipment barn in Hutchinson"></label>
+              <label class="field"><span>Photo from your library <em>(optional)</em></span><select name="mediaId"><option value="">No photo</option></select></label>
+              <div class="studio-actions"><span class="muted small">Claude drafts it; you review before it posts.</span><button class="btn btn-ai" type="submit">✦ Draft post</button></div>
+            </form>
+          </section>
+          <section class="card">
+            <div class="card-head"><h2>Posts</h2></div>
+            <div id="gbpPosts"></div>
+          </section>
+        </aside>
+      </div>
+    </div>
   </main>
 
   <dialog id="limits" class="sheet">
@@ -131,5 +210,6 @@
 
   <div class="toast" id="toast" role="status"></div>
   <script src="/app.js" type="module"></script>
+  <script src="/content.js" type="module"></script>
 </body>
 </html>

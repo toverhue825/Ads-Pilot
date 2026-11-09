@@ -50,6 +50,15 @@ export const config = {
     weeklyDay: num('AI_WEEKLY_DAY', 1), // 0=Sun … 1=Mon
   },
 
+  google: {
+    // Drive content library: a service account's JSON key (whole file contents) + the shared folder's ID.
+    serviceAccountJson: env('GOOGLE_SERVICE_ACCOUNT_JSON', ''),
+    driveFolderId: env('GOOGLE_DRIVE_FOLDER_ID', ''),
+    // Google Business Profile: an OAuth client; someone who manages the profile clicks "Connect" once.
+    oauthClientId: env('GOOGLE_OAUTH_CLIENT_ID', ''),
+    oauthClientSecret: env('GOOGLE_OAUTH_CLIENT_SECRET', ''),
+  },
+
   targetCpl: num('TARGET_CPL', 45),
   maxBudgetChangePct: num('MAX_BUDGET_CHANGE_PCT', 20),
   dailySpendCap: num('DAILY_SPEND_CAP', 600),

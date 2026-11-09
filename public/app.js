@@ -563,6 +563,7 @@ $('#accountSel').addEventListener('change', (e) => {
   account = e.target.value; store.set('account', account);
   loadOverview(); loadSuggestions(); loadInsight();
   $('#studioForm').elements.competitors.value = ''; loadStudio();
+  window.dispatchEvent(new Event('ap:account'));
 });
 
 // ---------- Targets & limits ----------
@@ -645,7 +646,16 @@ async function refresh() {
   $('#synced').textContent = `Synced ${ago(me.lastSync)}`;
   renderAccountPicker();
   await Promise.all([loadOverview(), loadSuggestions(), loadActivity(), loadInsight(), loadHealth(), loadStudio()]);
+  window.dispatchEvent(new Event('ap:ready'));
 }
+
+// Shared helpers for the other tabs (content.js).
+window.AP = {
+  api, esc, toast, ago, fmt, $,
+  account: () => account || (me?.accounts.length === 1 ? me.accounts[0].id : ''),
+  me: () => me, acctById: () => acctById(), loadActivity, loadHealth,
+  latestAngles: () => (currentPlan?.result?.ads ?? []).map((a) => `${a.angle}: ${a.headline}`),
+};
 
 document.querySelectorAll('.seg button').forEach((b) => b.addEventListener('click', () => {
   days = Number(b.dataset.days);

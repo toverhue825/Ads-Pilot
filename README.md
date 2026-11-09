@@ -53,6 +53,38 @@ Claude reads each brand's last 7 days against the week before and that brand's t
 - **Refusal fallback:** in the rare case Claude's safety filters decline a request, the API automatically retries on Anthropic's recommended backup model (the `fallbacks: "default"` setting in `src/ai.js`).
 - **What gets sent to Anthropic:** campaign names, the numbers shown on the dashboard, your targets and the brand description. No customer or lead details are sent.
 
+### Content library, Video Studio and Google Business Profile
+
+- **Library tab:** mirrors one shared Google Drive folder, including subfolders. Claude describes and tags each photo and clip, so you can search things like "garage drone". It syncs every 6 hours, or when you click **Refresh**.
+- **Videos tab:** turns an idea or Ad Studio angle into a shot-by-shot plan. It uses library clips where they fit, lists what still needs filming with phone tips, and tracks each video from Idea to Live.
+- **Google Business tab:**
+  - Profile stats: views, calls, website clicks and direction requests.
+  - Reviews with Claude-drafted replies that you edit and post. New 1–3★ reviews trigger an email.
+  - Google posts drafted by Claude, using a library photo.
+
+#### Google setup (one time, about 30 minutes)
+
+1. **Create a project** at console.cloud.google.com, for example "Ads Pilot".
+2. Under **APIs & Services → Library**, enable:
+   - Google Drive API
+   - My Business Account Management API
+   - My Business Business Information API
+   - Business Profile Performance API
+   - Google My Business API (this one may only appear after step 3 is approved)
+3. **Request Business Profile API access.** Search "Google Business Profile API access request form", choose **Application for Basic API access**, and give your project number. Google usually replies within days to a couple of weeks. Until then, the Google Business tab will show access or quota errors.
+4. **Drive access (service account):**
+   - Go to **IAM & Admin → Service accounts → Create** (name it "ads-pilot-drive").
+   - Open it → **Keys → Add key → JSON**. That downloads a file.
+   - In Render, set `GOOGLE_SERVICE_ACCOUNT_JSON` to the **entire contents** of that file.
+5. **The Drive folder:**
+   - Create a folder such as "SBD Ad Content" and **share** it with the service account's email (`…@….iam.gserviceaccount.com`) as **Viewer**.
+   - Set `GOOGLE_DRIVE_FOLDER_ID` to the ID in the folder's address: `drive.google.com/drive/folders/<THIS PART>`.
+6. **Business Profile sign-in (OAuth):**
+   - **APIs & Services → OAuth consent screen**: set up the app, then under Audience click **Publish app** ("In production"). In "Testing" mode Google expires the sign-in after 7 days. While Google hasn't verified the app, you'll see a "Google hasn't verified this app" screen; click **Advanced → continue**. That's fine for your own use.
+   - **Clients → Create client → Web application**, with redirect URI `https://ads-pilot-e1dl.onrender.com/google/callback`.
+   - Set `GOOGLE_OAUTH_CLIENT_ID` and `GOOGLE_OAUTH_CLIENT_SECRET` in Render.
+   - On the dashboard: **Google Business → Connect with Google**, sign in with the account that manages the profile, then pick your location.
+
 ### Why the email buttons open a confirm page
 
 Work email systems (Microsoft 365, Google, Mimecast) open every link in an email to scan it for viruses. If a link applied the change directly, the scanner would approve everything. So the email button opens a page with one **Yes, apply** button.

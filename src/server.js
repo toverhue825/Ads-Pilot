@@ -10,6 +10,10 @@ import { buildDigest, sendDigest, sendAlert } from './email.js';
 import { recordOk, recordFail, problems, setNotifier } from './health.js';
 import { startPlan, getPlan, listPlans } from './studio.js';
 import { publishOptions, createPausedAd } from './publish.js';
+import { syncLibrary, searchLibrary, libraryStatus, getThumb, downloadImage } from './library.js';
+import { planVideo, listVideos, setVideoStatus, STAGES } from './video.js';
+import { gbpConfigured, gbpAuthUrl, gbpFinishAuth, gbpDisconnect, gbpConnected, driveConfigured, serviceAccountEmail } from './google.js';
+import { gbpStatus, listLocations, chooseLocation, syncReviews, listReviews, postReply, draftPost, listPosts, publishPost, syncStats } from './gbp.js';
 import { sign, verify } from './tokens.js';
 import { aiEnabled, generateInsight, latestInsight } from './ai.js';
 import { windows, accountTotals, campaignTotals, daily } from './metrics.js';
@@ -109,6 +113,18 @@ app.post('/review/:token', async (req, res) => {
   const r = await decide(t.sid, t.decision, `${name} (email)`);
   res.send(reviewPage('Done', `<h1>${r.ok ? (t.decision === 'approve' ? 'Done ✓' : 'Dismissed') : 'Could not apply'}</h1>
     <p class="muted">${esc(r.message)}</p><p><a class="btn btn-primary" href="/">Open the dashboard</a></p>`));
+});
+
+// ---------- Short-lived public photo links (Google fetches post photos from here) ----------
+app.get('/m/:token', async (req, res) => {
+  const t = verify(req.params.token);
+  if (!t?.mid) return res.status(404).send('Not found');
+  try {
+    const { mime, bytes } = await downloadImage(t.mid);
+    res.setHeader('Content-Type', mime);
+    res.setHeader('Cache-Control', 'private, max-age=3600');
+    res.send(bytes);
+  } catch { res.status(404).send('Not found'); }
 });
 
 // ---------- Everything below needs a login ----------
@@ -296,6 +312,66 @@ app.post('/api/studio', (req, res) => {
     res.status(400).json({ ok: false, error: e.message });
   }
 });
+// ---------- Content library (Google Drive) ----------
+const wrap = (fn) => async (req, res) => {
+  try { res.json(await fn(req)); } catch (e) { res.status(400).json({ ok: false, error: e.message }); }
+};
+app.get('/api/library', (req, res) => res.json({
+  status: { ...libraryStatus(), serviceAccount: serviceAccountEmail() },
+  items: searchLibrary({ q: String(req.query.q ?? ''), kind: String(req.query.kind ?? '') }),
+}));
+app.post('/api/library/sync', wrap(async () => {
+  const r = await syncLibrary();
+  if (!r.skipped && !r.busy) await recordOk('drive');
+  return { ok: true, ...r };
+}));
+app.get('/api/library/:id/thumb', (req, res) => {
+  const t = getThumb(req.params.id);
+  if (!t) return res.status(404).end();
+  res.setHeader('Content-Type', 'image/jpeg');
+  res.setHeader('Cache-Control', 'private, max-age=86400');
+  res.send(Buffer.from(t, 'base64'));
+});
+
+// ---------- Video Studio ----------
+app.get('/api/videos', (req, res) => res.json({ stages: STAGES, videos: listVideos(pickAccount(req.query.account)) }));
+app.post('/api/videos', wrap(async (req) => ({
+  ok: true, video: await planVideo(pickAccount(req.body.account), {
+    idea: String(req.body.idea ?? '').slice(0, 1000), offer: String(req.body.offer ?? '').slice(0, 300),
+    length: req.body.length, format: req.body.format,
+  }, user(req)),
+})));
+app.post('/api/videos/:id/status', wrap(async (req) => { setVideoStatus(Number(req.params.id), String(req.body.status), user(req)); return { ok: true }; }));
+
+// ---------- Google Business Profile ----------
+app.get('/google/connect', (req, res) => {
+  if (!gbpConfigured()) return res.status(400).send('Google sign-in is not set up yet (GOOGLE_OAUTH_CLIENT_ID / SECRET).');
+  res.redirect(gbpAuthUrl(sign({ u: user(req), purpose: 'gbp' }, 15 * 60e3)));
+});
+app.get('/google/callback', async (req, res) => {
+  const st = verify(String(req.query.state ?? ''));
+  if (st?.purpose !== 'gbp') return res.status(400).send('This sign-in link expired. Go back to the dashboard and click Connect again.');
+  if (req.query.error) return res.redirect('/#google');
+  try {
+    await gbpFinishAuth(String(req.query.code ?? ''));
+    audit(user(req), null, 'Connected Google Business Profile');
+    res.redirect('/#google');
+  } catch (e) {
+    res.status(400).send(`Couldn't connect Google: ${esc(e.message)}`);
+  }
+});
+app.get('/api/gbp', (_req, res) => res.json({ configured: gbpConfigured(), ...gbpStatus(), reviewList: listReviews(), posts: listPosts() }));
+app.get('/api/gbp/locations', wrap(async () => ({ ok: true, locations: await listLocations() })));
+app.post('/api/gbp/location', wrap(async (req) => { chooseLocation(req.body, user(req)); return { ok: true }; }));
+app.post('/api/gbp/sync', wrap(async () => {
+  const r = await syncReviews(sendAlert); const s = await syncStats(); await recordOk('gbp');
+  return { ok: true, ...r, stats: s };
+}));
+app.post('/api/gbp/reply', wrap(async (req) => { await postReply(String(req.body.name), req.body.text, user(req)); return { ok: true }; }));
+app.post('/api/gbp/posts', wrap(async (req) => ({ ok: true, post: await draftPost({ topic: req.body.topic, mediaId: req.body.mediaId || null, accountId: pickAccount(req.body.account) }, user(req)) })));
+app.post('/api/gbp/posts/:id/publish', wrap(async (req) => { await publishPost(Number(req.params.id), req.body ?? {}, user(req)); return { ok: true }; }));
+app.post('/api/gbp/disconnect', wrap(async (req) => { gbpDisconnect(); audit(user(req), null, 'Disconnected Google Business Profile'); return { ok: true }; }));
+
 // ---------- Publish to Facebook (paused) ----------
 app.get('/api/publish/options', async (req, res) => {
   const accountId = pickAccount(req.query.account);
@@ -355,6 +431,20 @@ async function cycle() {
   }
 }
 setInterval(cycle, config.syncIntervalMinutes * 60e3);
+
+// Google: content library and Business Profile every 6 hours (and shortly after start).
+async function googleCycle() {
+  if (driveConfigured()) {
+    try { const r = await syncLibrary(); if (!r.busy) await recordOk('drive'); console.log('[library]', r); }
+    catch (e) { console.error('[library] failed:', e.message); await recordFail('drive', e).catch(() => {}); }
+  }
+  if (gbpConnected() && gbpStatus().location) {
+    try { await syncReviews(sendAlert); await syncStats(); await recordOk('gbp'); console.log('[gbp] synced'); }
+    catch (e) { console.error('[gbp] failed:', e.message); await recordFail('gbp', e).catch(() => {}); }
+  }
+}
+setTimeout(googleCycle, 20e3);
+setInterval(googleCycle, 6 * 3600e3);
 setInterval(async () => {
   const d = new Date();
   const today = d.toLocaleDateString('en-CA'); // local date (YYYY-MM-DD), so "once a day" follows TZ, not UTC
