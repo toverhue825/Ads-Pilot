@@ -51,6 +51,15 @@ try {
   bad(`Couldn't list ad accounts: ${e.message}`);
 }
 
+// 2b) Pages the system user can run ads as (needed for "Create in Facebook").
+try {
+  const pages = (await get('me/accounts', { fields: 'id,name', limit: '50' })).data;
+  if (pages.length) { ok(`Can use ${pages.length} Facebook Page(s) for publishing:`); for (const p of pages) info(`${p.id}  ${p.name}`); }
+  else bad('No Facebook Pages assigned to the system user (only needed for "Create in Facebook").');
+} catch (e) {
+  bad(`Couldn't list Pages: ${e.message} (only needed for "Create in Facebook").`);
+}
+
 if (!config.meta.adAccountIds.length) {
   bad('META_AD_ACCOUNT_IDS is empty. Copy the act_… id(s) above into .env (comma-separated for several brands) and run this again.');
   process.exit(1);

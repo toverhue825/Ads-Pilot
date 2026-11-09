@@ -9,6 +9,7 @@ import { runEngine, refreshAccountSuggestions } from './engine.js';
 import { buildDigest, sendDigest, sendAlert } from './email.js';
 import { recordOk, recordFail, problems, setNotifier } from './health.js';
 import { startPlan, getPlan, listPlans } from './studio.js';
+import { publishOptions, createPausedAd } from './publish.js';
 import { sign, verify } from './tokens.js';
 import { aiEnabled, generateInsight, latestInsight } from './ai.js';
 import { windows, accountTotals, campaignTotals, daily } from './metrics.js';
@@ -30,7 +31,7 @@ app.use(express.urlencoded({ extended: false, limit: '20kb' }));
 // Small JSON bodies everywhere, except the Ad Studio, which can carry a few screenshots.
 const smallJson = express.json({ limit: '20kb' });
 const bigJson = express.json({ limit: '16mb' });
-app.use((req, res, next) => (req.path === '/api/studio' && req.method === 'POST' ? bigJson : smallJson)(req, res, next));
+app.use((req, res, next) => (['/api/studio', '/api/publish'].includes(req.path) && req.method === 'POST' ? bigJson : smallJson)(req, res, next));
 
 app.get('/healthz', (_req, res) => res.send('ok')); // for the host's uptime check
 
@@ -219,6 +220,21 @@ app.post('/api/accounts/:id', (req, res) => {
     if (!Number.isFinite(v) || v < rule.min || v > rule.max) return res.status(400).json({ ok: false, error: `${rule.label} must be between ${rule.min} and ${rule.max}` });
     if (v !== a[k]) changes.push([k, v, `${rule.label} ${a[k]} → ${v}`]);
   }
+  // Facebook publishing settings (not limits, so they don't reset suggestions).
+  const idField = (k, label) => {
+    if (req.body[k] === undefined) return null;
+    const v = clean(req.body[k]);
+    if (v && !/^\d{5,25}$/.test(v)) return `${label} should be numbers only.`;
+    if (v !== (a[k] ?? '')) changes.push([k, v, `${label} updated`]);
+    return null;
+  };
+  const bad = idField('page_id', 'Facebook Page ID') || idField('pixel_id', 'Pixel ID') || idField('lead_form_id', 'Lead form ID');
+  if (bad) return res.status(400).json({ ok: false, error: bad });
+  if (req.body.website !== undefined) {
+    const v = clean(req.body.website);
+    if (v && !/^https?:\/\/[^\s]+\.[^\s]+$/.test(v)) return res.status(400).json({ ok: false, error: 'Website should start with https://' });
+    if (v !== (a.website ?? '')) changes.push(['website', v, 'Website updated']);
+  }
   if (req.body.context !== undefined) {
     const v = String(req.body.context).trim().slice(0, 1500);
     if (v !== (a.context ?? '')) changes.push(['context', v, 'Brand description updated']);
@@ -231,7 +247,8 @@ app.post('/api/accounts/:id', (req, res) => {
   for (const [k, v] of changes) db.prepare(`UPDATE accounts SET ${k} = ?, updated_at = ? WHERE id = ?`).run(v, now(), a.id);
   audit(user(req), null, `${a.name}: ${changes.map((c) => c[2]).join(', ')}`);
   // Only limits affect the rule-based suggestions; the description is for the AI review.
-  const r = changes.some(([k]) => k !== 'context') ? refreshAccountSuggestions(a.id) : { created: 0 };
+  const LIMIT_KEYS = ['target_cpl', 'max_change_pct', 'daily_cap', 'min_spend', 'enabled'];
+  const r = changes.some(([k]) => LIMIT_KEYS.includes(k)) ? refreshAccountSuggestions(a.id) : { created: 0 };
   res.json({ ok: true, changed: changes.length, created: r.created });
 });
 
@@ -279,6 +296,37 @@ app.post('/api/studio', (req, res) => {
     res.status(400).json({ ok: false, error: e.message });
   }
 });
+// ---------- Publish to Facebook (paused) ----------
+app.get('/api/publish/options', async (req, res) => {
+  const accountId = pickAccount(req.query.account);
+  if (!accountId) return res.status(400).json({ error: 'Pick a brand first.' });
+  const a = db.prepare('SELECT page_id, website, pixel_id, lead_form_id, daily_cap FROM accounts WHERE id = ?').get(accountId);
+  res.json({ live: config.dataSource === 'meta', settings: a, ...(await publishOptions(accountId)) });
+});
+const publishing = new Set();
+app.post('/api/publish', async (req, res) => {
+  const accountId = pickAccount(req.body.account);
+  if (!accountId) return res.status(400).json({ ok: false, error: 'Pick a brand first.' });
+  if (publishing.has(accountId)) return res.status(409).json({ ok: false, error: 'Already creating an ad for this brand. One moment.' });
+  const img = req.body.image;
+  if (!img || !['image/jpeg', 'image/png'].includes(img.type) || typeof img.data !== 'string' || img.data.length > 12_000_000) {
+    return res.status(400).json({ ok: false, error: 'Add a JPG or PNG image.' });
+  }
+  publishing.add(accountId);
+  try {
+    const r = await createPausedAd(accountId, {
+      planId: Number(req.body.planId) || null, adIndex: Number(req.body.adIndex),
+      primary_text: clean(req.body.primary_text ?? ''), headline: clean(req.body.headline ?? ''), description: clean(req.body.description ?? ''),
+      cta: String(req.body.cta ?? ''), mode: req.body.mode === 'form' ? 'form' : 'website', dailyBudget: req.body.dailyBudget, image: img,
+    }, user(req));
+    res.json({ ok: true, ...r });
+  } catch (e) {
+    res.status(400).json({ ok: false, error: e.message });
+  } finally {
+    publishing.delete(accountId);
+  }
+});
+
 app.get('/api/studio/:id', (req, res) => {
   const p = getPlan(Number(req.params.id));
   p ? res.json(p) : res.status(404).json({ error: 'Not found' });
