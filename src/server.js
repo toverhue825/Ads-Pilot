@@ -2,7 +2,7 @@ import express from 'express';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
-import { config } from './config.js';
+import { config, clean } from './config.js';
 import { db, now, audit, getMeta, setMeta } from './db.js';
 import { syncAll, applyAction } from './sync.js';
 import { runEngine, refreshAccountSuggestions } from './engine.js';
@@ -52,10 +52,11 @@ const user = (req) => verify(cookies(req).session)?.name ?? null;
 app.get('/login', (_req, res) => res.sendFile(path.join(PUBLIC, 'login.html')));
 app.post('/login', (req, res) => {
   if (tooMany(req.ip)) return res.redirect('/login?error=locked');
-  const pw = String(req.body.password ?? '').trim();
-  const name = String(req.body.name ?? '').trim().slice(0, 60);
-  const ok = name && pw.length === config.dashboardPassword.length &&
-    crypto.timingSafeEqual(Buffer.from(pw), Buffer.from(config.dashboardPassword));
+  const name = clean(req.body.name ?? '').slice(0, 60);
+  if (!name) return res.redirect('/login?error=name');
+  // Compare fixed-length hashes so any password (any characters, any length) compares safely.
+  const hash = (s) => crypto.createHash('sha256').update(clean(s)).digest();
+  const ok = crypto.timingSafeEqual(hash(req.body.password ?? ''), hash(config.dashboardPassword));
   if (!ok) { recordFailure(req.ip); return res.redirect('/login?error=1'); }
   failures.delete(req.ip);
   const secure = config.baseUrl.startsWith('https') ? '; Secure' : '';

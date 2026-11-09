@@ -18,9 +18,12 @@
   </form>
   <script>
     const err = new URLSearchParams(location.search).get('error');
-    if (err) document.getElementById('err').innerHTML = err === 'locked'
-      ? '<p class="error">Too many wrong tries. Wait 15 minutes and try again.</p>'
-      : '<p class="error">That password didn’t match. Try again.</p>';
+    const msgs = {
+      locked: 'Too many wrong tries. Wait 15 minutes and try again.',
+      name: 'Please type your name too.',
+    };
+    if (err) document.getElementById('err').innerHTML =
+      `<p class="error">${msgs[err] ?? 'That password didn’t match. It’s case-sensitive; check Caps Lock and try again.'}</p>`;
   </script>
 </body>
 </html>

@@ -11,8 +11,12 @@ if (fs.existsSync(envPath)) {
 }
 
 // Trim: values pasted into a host's settings often pick up a trailing space or line break.
+// Also drop invisible characters and wrapping quotes that sneak in when copying from documents or chats.
+export const clean = (s) => String(s)
+  .replace(/[​-‍⁠﻿]/g, '').replace(/ /g, ' ').trim()
+  .replace(/^(["'“‘])(.*)(["'”’])$/s, '$2').trim();
 const env = (k, d) => {
-  const v = process.env[k]?.trim();
+  const v = process.env[k] === undefined ? undefined : clean(process.env[k]);
   return v === undefined || v === '' ? d : v;
 };
 const num = (k, d) => Number(env(k, d));
