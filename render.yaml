@@ -4,7 +4,7 @@ services:
   - type: web
     name: ads-pilot
     runtime: docker
-    plan: starter            # always-on; the free plan sleeps, which would stop the hourly sync and emails
+    plan: 0.5c-512mb         # smallest always-on plan; the free plan sleeps, which would stop the hourly sync and emails
     healthCheckPath: /healthz
     disk:
       name: ads-data
