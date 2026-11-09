@@ -342,6 +342,128 @@ $('#aiCard').addEventListener('click', async (e) => {
   loadActivity();
 });
 
+// ---------- Ad Studio ----------
+const CTA_LABEL = { GET_QUOTE: 'Get quote', LEARN_MORE: 'Learn more', CONTACT_US: 'Contact us', SIGN_UP: 'Sign up', GET_OFFER: 'Get offer', CALL_NOW: 'Call now', SHOP_NOW: 'Shop now', APPLY_NOW: 'Apply now' };
+let shots = []; // [{type, data, url}]
+let studioPoll = null;
+const studioAccount = () => account || (me.accounts.length === 1 ? me.accounts[0].id : '');
+
+// Shrink screenshots in the browser before upload (max 1600px, JPEG).
+function shrink(file) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const s = Math.min(1, 1600 / Math.max(img.width, img.height));
+      const c = document.createElement('canvas'); c.width = Math.round(img.width * s); c.height = Math.round(img.height * s);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      const url = c.toDataURL('image/jpeg', 0.85);
+      URL.revokeObjectURL(img.src);
+      resolve({ type: 'image/jpeg', data: url.split(',')[1], url });
+    };
+    img.onerror = reject;
+    img.src = URL.createObjectURL(file);
+  });
+}
+function renderThumbs() {
+  $('#thumbs').innerHTML = shots.map((s, i) => `<figure><img src="${s.url}" alt="Competitor ad screenshot ${i + 1}"><button type="button" data-rm="${i}" aria-label="Remove">✕</button></figure>`).join('');
+}
+$('#shots').addEventListener('change', async (e) => {
+  for (const f of [...e.target.files].slice(0, 4 - shots.length)) { try { shots.push(await shrink(f)); } catch { toast(`Couldn't read ${f.name}`); } }
+  e.target.value = '';
+  renderThumbs();
+});
+$('#thumbs').addEventListener('click', (e) => { const b = e.target.closest('[data-rm]'); if (b) { shots.splice(Number(b.dataset.rm), 1); renderThumbs(); } });
+
+function charCount(text, limit) {
+  const n = [...(text ?? '')].length;
+  return `<span class="chars ${n > limit ? 'over' : ''}">${n}/${limit}</span>`;
+}
+function renderPlan(p) {
+  const out = $('#studioOut');
+  if (!p) { out.innerHTML = ''; return; }
+  if (p.status === 'running') {
+    const secs = Math.round((Date.now() - new Date(p.created_at)) / 1000);
+    out.innerHTML = `<div class="progress"><b>Researching ${esc(p.request.competitors.join(', '))}…</b>
+      <div class="muted small">Searching the web, reading their sites${p.request.images ? ' and your screenshots' : ''}, then writing ${p.request.count} ads. ${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')} so far.</div>
+      <div class="bar"><span></span></div></div>`;
+    return;
+  }
+  if (p.status === 'failed') { out.innerHTML = `<div class="progress"><b class="crit-ink">That didn't work.</b><p class="muted">${esc(p.error)}</p></div>`; return; }
+  const r = p.result;
+  const brand = acctById().get(p.account_id)?.name ?? 'Your brand';
+  const list = (a) => (a?.length ? a.map(esc).join('; ') : '–');
+  out.innerHTML = `<div class="plan">
+    <p class="ai-summary">${esc(r.summary)}</p>
+    <h3>New ads to test</h3>
+    <div class="fb-ads">${r.ads.map((a, i) => `
+      <article class="fb-ad" data-ad="${i}">
+        <div class="angle">${esc(a.angle)}</div>
+        <div class="who"><span class="av">${esc(brand[0])}</span><div>${esc(brand)}<small>Sponsored</small></div></div>
+        <div class="ptext" contenteditable="true" data-f="primary_text" aria-label="Primary text">${esc(a.primary_text)}</div>
+        <div class="img"><div><b>Image idea</b>${esc(a.image_idea)}</div></div>
+        <div class="bar"><div><div class="hl" contenteditable="true" data-f="headline" aria-label="Headline">${esc(a.headline)}</div>
+          <div class="desc" contenteditable="true" data-f="description" aria-label="Description">${esc(a.description)}</div></div>
+          <span class="cta">${esc(CTA_LABEL[a.cta] ?? a.cta)}</span></div>
+        <div class="meta"><b>Why it wins:</b> ${esc(a.why_it_wins)}<br><b>Audience:</b> ${esc(a.audience)}<br>
+          ${a.long_text ? `<details style="margin:6px 0"><summary>Longer version to test</summary><div contenteditable="true" data-f="long_text" style="white-space:pre-line;margin-top:4px">${esc(a.long_text)}</div></details>` : ''}
+          Primary text ${charCount(a.primary_text, 125)} · Headline ${charCount(a.headline, 40)} · Description ${charCount(a.description, 30)}</div>
+        <div class="tools"><button class="btn btn-ghost" type="button" data-copyad="${i}">Copy ad</button></div>
+      </article>`).join('')}</div>
+    <p class="muted small">Click any text to edit it before copying. Text in [brackets] is for you to fill in; Claude doesn't invent prices or guarantees.</p>
+    <h3>What competitors are doing</h3>
+    <div class="comp-grid">${r.competitors.map((c) => `
+      <div class="comp-card"><h4>${esc(c.name)}</h4><p class="pos">${esc(c.positioning)}</p>
+        <dl><dt>Offers</dt><dd>${list(c.offers)}</dd><dt>Strong at</dt><dd>${list(c.strengths)}</dd><dt>Weak spots</dt><dd>${list(c.weaknesses)}</dd></dl></div>`).join('')}</div>
+    <h3>Openings for you</h3>
+    <ol class="ai-box" style="padding:14px 16px 14px 34px;margin:0">${r.gaps.map((g) => `<li>${esc(g)}</li>`).join('')}</ol>
+    ${r.sources?.length ? `<h3>Sources</h3><ul class="sources">${r.sources.slice(0, 15).map((s) => `<li><a href="${esc(/^https?:\/\//.test(s.url) ? s.url : '#')}" target="_blank" rel="noopener noreferrer">${esc(s.title || s.url)}</a></li>`).join('')}</ul>` : ''}
+    <div class="ai-foot">Written ${ago(p.created_at)} by ${esc(p.created_by)}. Competitor details come from public web pages and may be out of date; double-check before relying on them.</div>
+  </div>`;
+}
+$('#studioOut').addEventListener('click', async (e) => {
+  const b = e.target.closest('[data-copyad]'); if (!b) return;
+  const card = b.closest('.fb-ad');
+  const get = (f) => card.querySelector(`[data-f="${f}"]`).innerText.trim();
+  const long = card.querySelector('[data-f="long_text"]');
+  const text = `${get('primary_text')}\n\nHeadline: ${get('headline')}\nDescription: ${get('description')}\nButton: ${card.querySelector('.cta').textContent}`
+    + (long ? `\n\nLonger version:\n${long.innerText.trim()}` : '');
+  try { await navigator.clipboard.writeText(text); b.textContent = 'Copied ✓'; } catch { b.textContent = 'Select & copy'; }
+});
+
+async function loadStudio(selectId) {
+  const acct = studioAccount();
+  const s = await api(`/api/studio?x=1${acct ? `&account=${encodeURIComponent(acct)}` : ''}`);
+  const form = $('#studioForm');
+  form.querySelector('#studioGo').disabled = !s.enabled || !acct;
+  $('#studioNote').textContent = !s.enabled ? 'Turn on AI (ANTHROPIC_API_KEY) to use the Ad Studio.'
+    : !acct ? 'Pick a brand at the top first.' : 'Takes 2–4 minutes and about $1 in Claude usage. You can keep using the dashboard meanwhile.';
+  if (!form.elements.competitors.value) form.elements.competitors.value = s.competitors || '';
+  const hist = $('#planHistory');
+  hist.hidden = s.plans.length < 2;
+  hist.innerHTML = s.plans.map((p) => `<option value="${p.id}">${new Date(p.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} · ${esc(p.request.competitors.slice(0, 2).join(', '))}${p.request.competitors.length > 2 ? '…' : ''} · ${p.status}</option>`).join('');
+  const show = s.plans.find((p) => p.id === selectId) ?? s.plans[0];
+  if (show) hist.value = show.id;
+  renderPlan(show);
+  clearTimeout(studioPoll);
+  if (show?.status === 'running') studioPoll = setTimeout(() => loadStudio(show.id), 5000);
+}
+$('#planHistory').addEventListener('change', (e) => loadStudio(Number(e.target.value)));
+$('#studioForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const f = e.target, btn = $('#studioGo');
+  btn.disabled = true;
+  const body = {
+    account: studioAccount(), competitors: f.elements.competitors.value, offer: f.elements.offer.value,
+    destination: f.elements.destination.value, audience: f.elements.audience.value, count: f.elements.count.value,
+    pasted: f.elements.pasted.value, images: shots.map(({ type, data }) => ({ type, data })),
+  };
+  const r = await api('/api/studio', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  btn.disabled = false;
+  if (!r.ok) { toast(r.error); return; }
+  toast('Researching your competitors. This takes a few minutes.');
+  loadStudio(r.id);
+});
+
 // ---------- Connection problems ----------
 async function loadHealth() {
   const { problems } = await api('/api/health');
@@ -365,6 +487,7 @@ function renderAccountPicker() {
 $('#accountSel').addEventListener('change', (e) => {
   account = e.target.value; store.set('account', account);
   loadOverview(); loadSuggestions(); loadInsight();
+  $('#studioForm').elements.competitors.value = ''; loadStudio();
 });
 
 // ---------- Targets & limits ----------
@@ -387,7 +510,7 @@ function renderLimits() {
             ${f.post ? `<span class="unit post">${f.post}</span>` : ''}</div>
           <small>${f.help}</small></label>`).join('')}
       </div>
-      <label class="field" style="margin-top:12px"><span>What this brand sells, and to whom</span>
+      <label class="field" style="margin-top:12px"><span>What this brand sells, to whom, and its website</span>
         <textarea name="context" maxlength="1500" placeholder="e.g. Steel buildings for farms, shops and garages in the Midwest. Customers are farmers and small business owners. We offer free quotes and fast delivery.">${esc(a.context ?? '')}</textarea>
         <small>Helps the AI review write ad copy that fits. Don't include anything you wouldn't put in an ad.</small></label>
       <div class="actions"><span class="muted" data-status style="font-size:13px"></span><button class="btn btn-primary" type="submit">Save</button></div>
@@ -418,7 +541,7 @@ async function refresh() {
   $('#source').textContent = me.dataSource === 'meta' ? '● Live Facebook data' : '◌ Sample data';
   $('#synced').textContent = `Synced ${ago(me.lastSync)}`;
   renderAccountPicker();
-  await Promise.all([loadOverview(), loadSuggestions(), loadActivity(), loadInsight(), loadHealth()]);
+  await Promise.all([loadOverview(), loadSuggestions(), loadActivity(), loadInsight(), loadHealth(), loadStudio()]);
 }
 
 document.querySelectorAll('.seg button').forEach((b) => b.addEventListener('click', () => {

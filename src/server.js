@@ -8,6 +8,7 @@ import { syncAll, applyAction } from './sync.js';
 import { runEngine, refreshAccountSuggestions } from './engine.js';
 import { buildDigest, sendDigest, sendAlert } from './email.js';
 import { recordOk, recordFail, problems, setNotifier } from './health.js';
+import { startPlan, getPlan, listPlans } from './studio.js';
 import { sign, verify } from './tokens.js';
 import { aiEnabled, generateInsight, latestInsight } from './ai.js';
 import { windows, accountTotals, campaignTotals, daily } from './metrics.js';
@@ -26,7 +27,10 @@ app.use((_req, res, next) => {
   next();
 });
 app.use(express.urlencoded({ extended: false, limit: '20kb' }));
-app.use(express.json({ limit: '20kb' }));
+// Small JSON bodies everywhere, except the Ad Studio, which can carry a few screenshots.
+const smallJson = express.json({ limit: '20kb' });
+const bigJson = express.json({ limit: '16mb' });
+app.use((req, res, next) => (req.path === '/api/studio' && req.method === 'POST' ? bigJson : smallJson)(req, res, next));
 
 app.get('/healthz', (_req, res) => res.send('ok')); // for the host's uptime check
 
@@ -254,6 +258,31 @@ app.post('/api/sync', async (req, res) => {
 });
 
 app.get('/api/health', (_req, res) => res.json({ problems: problems() }));
+
+// ---------- Ad Studio ----------
+app.get('/api/studio', (req, res) => {
+  const accountId = pickAccount(req.query.account);
+  const acct = accountId ? db.prepare('SELECT competitors FROM accounts WHERE id = ?').get(accountId) : null;
+  res.json({ enabled: aiEnabled(), competitors: acct?.competitors ?? '', plans: listPlans(accountId) });
+});
+app.post('/api/studio', (req, res) => {
+  try {
+    const images = (Array.isArray(req.body.images) ? req.body.images : []).slice(0, 4)
+      .filter((i) => ['image/jpeg', 'image/png', 'image/webp'].includes(i?.type) && typeof i.data === 'string' && i.data.length < 5_000_000);
+    const id = startPlan({
+      accountId: pickAccount(req.body.account), competitors: String(req.body.competitors ?? ''),
+      offer: String(req.body.offer ?? '').slice(0, 500), destination: String(req.body.destination ?? '').slice(0, 300),
+      audience: String(req.body.audience ?? '').slice(0, 500), count: req.body.count, pasted: String(req.body.pasted ?? ''), images,
+    }, user(req));
+    res.json({ ok: true, id });
+  } catch (e) {
+    res.status(400).json({ ok: false, error: e.message });
+  }
+});
+app.get('/api/studio/:id', (req, res) => {
+  const p = getPlan(Number(req.params.id));
+  p ? res.json(p) : res.status(404).json({ error: 'Not found' });
+});
 
 app.get('/email/preview', (_req, res) => res.send(buildDigest().html));
 app.post('/api/email/send', async (req, res) => {

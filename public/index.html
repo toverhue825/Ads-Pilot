@@ -40,6 +40,39 @@
 
     <section class="card ai-card" id="aiCard" aria-label="AI review"></section>
 
+    <section class="card studio" id="studio" aria-labelledby="studioTitle">
+      <div class="ai-head">
+        <span class="ai-badge" aria-hidden="true">✎</span>
+        <div><h2 id="studioTitle">Ad Studio</h2><div class="sub">Claude researches your competitors and writes original ads to beat them</div></div>
+        <span class="spacer"></span>
+        <select id="planHistory" class="plain-select" aria-label="Past ad plans" hidden></select>
+      </div>
+      <form id="studioForm" class="studio-form">
+        <label class="field wide"><span>Competitors</span>
+          <input name="competitors" placeholder="e.g. General Steel, Gable Steel, Toro Buildings" required></label>
+        <label class="field"><span>Offer or promo to feature <em>(optional)</em></span>
+          <input name="offer" placeholder="e.g. Free quote in 24 hours, winter pricing"></label>
+        <label class="field"><span>Where ads send people</span>
+          <input name="destination" placeholder="Facebook lead form, or your website address"></label>
+        <label class="field"><span>Audience notes <em>(optional)</em></span>
+          <input name="audience" placeholder="e.g. farmers & shop owners within 300 miles of Wichita"></label>
+        <label class="field"><span>How many ads</span>
+          <select name="count"><option>3</option><option selected>4</option><option>5</option><option>6</option></select></label>
+        <details class="field wide comp-ads">
+          <summary>Add competitor ads from the Meta Ad Library <em>(optional, makes the ads sharper)</em></summary>
+          <p class="muted small">Open <a href="https://www.facebook.com/ads/library/" target="_blank" rel="noopener">facebook.com/ads/library</a>, search a competitor, then paste their ad text below or attach screenshots (up to 4).</p>
+          <textarea name="pasted" rows="4" maxlength="6000" placeholder="Paste competitor ad text here…"></textarea>
+          <input type="file" id="shots" accept="image/png,image/jpeg,image/webp" multiple>
+          <div class="thumbs" id="thumbs"></div>
+        </details>
+        <div class="studio-actions wide">
+          <span class="muted small" id="studioNote">Takes 2–4 minutes and about $1 in Claude usage. You can keep using the dashboard meanwhile.</span>
+          <button class="btn btn-ai" id="studioGo" type="submit">✦ Research &amp; write ads</button>
+        </div>
+      </form>
+      <div id="studioOut"></div>
+    </section>
+
     <div class="grid cols">
       <div class="grid">
         <section class="charts">
