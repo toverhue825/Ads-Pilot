@@ -6,7 +6,8 @@ import { config } from './config.js';
 import { db, now, audit, getMeta, setMeta } from './db.js';
 import { syncAll, applyAction } from './sync.js';
 import { runEngine, refreshAccountSuggestions } from './engine.js';
-import { buildDigest, sendDigest } from './email.js';
+import { buildDigest, sendDigest, sendAlert } from './email.js';
+import { recordOk, recordFail, problems, setNotifier } from './health.js';
 import { sign, verify } from './tokens.js';
 import { aiEnabled, generateInsight, latestInsight } from './ai.js';
 import { windows, accountTotals, campaignTotals, daily } from './metrics.js';
@@ -154,7 +155,9 @@ app.post('/api/insight', async (req, res) => {
   if (generating.has(key)) return res.status(409).json({ ok: false, error: 'A review is already being written. It takes about a minute.' });
   generating.add(key);
   try {
-    res.json({ ok: true, insight: await generateInsight(accountId, user(req)) });
+    const insight = await generateInsight(accountId, user(req));
+    await recordOk('ai');
+    res.json({ ok: true, insight });
   } catch (e) {
     res.status(500).json({ ok: false, error: e.message });
   } finally {
@@ -240,39 +243,55 @@ app.post('/api/sync', async (req, res) => {
   try {
     const r = await syncAll();
     const e = runEngine();
+    await recordOk('facebook');
     audit(user(req), null, `Synced ${r.accounts} account(s), ${r.campaigns} campaigns; ${e.created} new suggestion(s)`);
     res.json({ ok: true, ...r, ...e });
   } catch (err) {
-    res.status(500).json({ ok: false, error: err.message });
+    const h = await recordFail('facebook', err);
+    res.status(500).json({ ok: false, error: `${h.msg} ${h.fix}` });
   }
 });
 
+app.get('/api/health', (_req, res) => res.json({ problems: problems() }));
+
 app.get('/email/preview', (_req, res) => res.send(buildDigest().html));
 app.post('/api/email/send', async (req, res) => {
-  try { res.json(await sendDigest(user(req), { force: true })); } catch (e) { res.status(500).json({ sent: false, reason: e.message }); }
+  try {
+    const r = await sendDigest(user(req), { force: true });
+    if (r.sent) await recordOk('email'); else if (r.failed) await recordFail('email', new Error(r.reason));
+    res.json(r);
+  } catch (e) { res.status(500).json({ sent: false, reason: e.message }); }
 });
 
 // ---------- Scheduler ----------
+setNotifier(sendAlert);
 async function cycle() {
   try {
     const r = await syncAll();
     const e = runEngine();
+    await recordOk('facebook');
     console.log(`[sync] ${r.accounts} accounts, ${r.campaigns} campaigns, ${r.rows} rows, ${e.created} new suggestions`);
   } catch (err) {
     console.error('[sync] failed:', err.message);
+    await recordFail('facebook', err).catch((e) => console.error('[health]', e.message));
   }
 }
 setInterval(cycle, config.syncIntervalMinutes * 60e3);
 setInterval(async () => {
   const d = new Date();
-  const today = d.toISOString().slice(0, 10);
+  const today = d.toLocaleDateString('en-CA'); // local date (YYYY-MM-DD), so "once a day" follows TZ, not UTC
   if (d.getHours() >= config.digestHour && getMeta('last_digest') !== today) {
     setMeta('last_digest', today);
     // Weekly AI review (all brands), written just before that day's email so the email can include it.
     if (aiEnabled() && d.getDay() === config.ai.weeklyDay && accountTotals(windows(14).cur).spend > 0) {
-      try { await generateInsight(null, 'scheduler'); console.log('[ai] weekly review written'); } catch (e) { console.error('[ai] failed:', e.message); }
+      try { await generateInsight(null, 'scheduler'); await recordOk('ai'); console.log('[ai] weekly review written'); }
+      catch (e) { console.error('[ai] failed:', e.message); await recordFail('ai', e).catch(() => {}); }
     }
-    try { console.log('[digest]', await sendDigest()); } catch (e) { console.error('[digest] failed:', e.message); }
+    try {
+      const r = await sendDigest();
+      if (r.sent) await recordOk('email'); else if (r.failed) await recordFail('email', new Error(r.reason));
+      console.log('[digest]', r);
+    } catch (e) { console.error('[digest] failed:', e.message); }
   }
 }, 60e3);
 

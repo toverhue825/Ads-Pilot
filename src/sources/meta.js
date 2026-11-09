@@ -15,7 +15,7 @@ async function graphGet(pathOrUrl, params = {}) {
   for (const [k, v] of Object.entries(params)) url.searchParams.set(k, typeof v === 'string' ? v : JSON.stringify(v));
   const res = await fetch(url, { headers: { Authorization: `Bearer ${config.meta.token}` } });
   const body = await res.json();
-  if (!res.ok || body.error) throw new Error(`Meta API: ${body.error?.message ?? res.statusText}`);
+  if (!res.ok || body.error) throw Object.assign(new Error(`Meta API: ${body.error?.message ?? res.statusText}`), { code: body.error?.code });
   return body;
 }
 
@@ -37,7 +37,7 @@ async function graphPost(id, params) {
     body: new URLSearchParams(params),
   });
   const body = await res.json();
-  if (!res.ok || body.error) throw new Error(`Meta API: ${body.error?.message ?? res.statusText}`);
+  if (!res.ok || body.error) throw Object.assign(new Error(`Meta API: ${body.error?.message ?? res.statusText}`), { code: body.error?.code });
   return body;
 }
 

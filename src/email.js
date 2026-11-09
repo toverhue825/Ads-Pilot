@@ -98,26 +98,38 @@ export async function sendDigest(actor = 'scheduler', { force = false } = {}) {
   const aiUnsent = freshAi && Date.now() - new Date(freshAi.created_at) < 864e5 && db.prepare("SELECT value FROM meta WHERE key = 'ai_emailed'").get()?.value !== String(freshAi.id);
   // force = someone clicked "Send email now": send whatever the digest holds, even if nothing is pending.
   if (!d.count && !aiUnsent && !force) return { sent: false, reason: 'No pending suggestions' };
-  const missing = [['SMTP_HOST', config.smtp.host], ['SMTP_PASS', config.smtp.pass], ['EMAIL_FROM', config.emailFrom], ['EMAIL_TO', config.emailTo]]
-    .filter(([, v]) => !v || v.includes('example.com')).map(([k]) => k);
+  const missing = missingSettings();
   if (missing.length) return { sent: false, reason: `Email isn't set up yet: fill in ${missing.join(', ')} in .env` };
 
-  const transport = nodemailer.createTransport({
-    host: config.smtp.host, port: config.smtp.port, secure: config.smtp.port === 465,
-    auth: config.smtp.user ? { user: config.smtp.user, pass: config.smtp.pass } : undefined,
-    connectionTimeout: 15000,
-  });
   const subject = !d.count && aiUnsent ? `Ads Pilot: your weekly AI review` : d.subject;
   try {
-    await transport.sendMail({ from: config.emailFrom, to: config.emailTo, subject, html: d.html });
+    await transport().sendMail({ from: config.emailFrom, to: config.emailTo, subject, html: d.html });
   } catch (e) {
-    return { sent: false, reason: explainSmtpError(e) };
+    return { sent: false, failed: true, reason: explainSmtpError(e) };
   }
   if (aiUnsent) db.prepare("INSERT INTO meta (key, value) VALUES ('ai_emailed', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(String(freshAi.id));
   const mark = db.prepare('UPDATE suggestions SET emailed_at = ? WHERE id = ?');
   for (const id of d.ids) mark.run(now(), id);
   audit(actor, null, `Emailed ${d.count} suggestion(s)${aiUnsent ? ' and the AI review' : ''} to ${config.emailTo}`);
   return { sent: true, count: d.count, to: config.emailTo };
+}
+
+const missingSettings = () => [['SMTP_HOST', config.smtp.host], ['SMTP_PASS', config.smtp.pass], ['EMAIL_FROM', config.emailFrom], ['EMAIL_TO', config.emailTo]]
+  .filter(([, v]) => !v || v.includes('example.com')).map(([k]) => k);
+
+const transport = () => nodemailer.createTransport({
+  host: config.smtp.host, port: config.smtp.port, secure: config.smtp.port === 465,
+  auth: config.smtp.user ? { user: config.smtp.user, pass: config.smtp.pass } : undefined,
+  connectionTimeout: 15000,
+});
+
+// Short alert email (connection problems). Throws if email itself isn't working.
+export async function sendAlert(subject, bodyHtml) {
+  if (missingSettings().length) throw new Error('Email not set up');
+  const html = `<!doctype html><html><body style="margin:0;background:#f6f5fb;font-family:system-ui,-apple-system,'Segoe UI',sans-serif">
+    <div style="max-width:560px;margin:24px auto;background:#fff;border:1px solid #e8e6f0;border-radius:14px;padding:22px 24px;color:#1d1b2e;font-size:15px;line-height:1.5">
+    <div style="font-size:13px;color:#6b6880;margin-bottom:8px">Ads Pilot · connection alert</div>${bodyHtml}</div></body></html>`;
+  await transport().sendMail({ from: config.emailFrom, to: config.emailTo, subject, html });
 }
 
 // Turn mail-server errors into something a person can act on.

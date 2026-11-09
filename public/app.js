@@ -227,7 +227,7 @@ async function loadOverview() {
   const t = o.totals, onTarget = t.cpl != null && t.cpl <= target.cpl;
   if (!t.spend && !o.previous.spend) {
     $('#headline').textContent = me.accounts.length
-      ? 'Connected to Facebook. Waiting for your first campaign to spend; numbers appear within an hour of launch.'
+      ? 'Waiting for your first campaign to spend. Numbers appear within an hour of launch.'
       : 'Waiting for the first sync with Facebook.';
     return;
   }
@@ -296,6 +296,17 @@ $('#aiCard').addEventListener('click', async (e) => {
   loadActivity();
 });
 
+// ---------- Connection problems ----------
+async function loadHealth() {
+  const { problems } = await api('/api/health');
+  const el = $('#health');
+  el.hidden = !problems.length;
+  el.innerHTML = problems.map((p) => `
+    <div class="health-item"><span class="icon" aria-hidden="true">!</span>
+      <div><b>${esc(p.label)}: needs attention</b>${p.since ? ` <span class="muted" style="font-size:12px">since ${esc(ago(p.since))}</span>` : ''}
+        <p>${esc(p.msg)}</p><p class="fix">How to fix: ${esc(p.fix)}</p></div></div>`).join('');
+}
+
 function renderAccountPicker() {
   if (account && !me.accounts.some((a) => a.id === account)) account = '';
   const sel = $('#accountSel');
@@ -361,7 +372,7 @@ async function refresh() {
   $('#source').textContent = me.dataSource === 'meta' ? '● Live Facebook data' : '◌ Sample data';
   $('#synced').textContent = `Synced ${ago(me.lastSync)}`;
   renderAccountPicker();
-  await Promise.all([loadOverview(), loadSuggestions(), loadActivity(), loadInsight()]);
+  await Promise.all([loadOverview(), loadSuggestions(), loadActivity(), loadInsight(), loadHealth()]);
 }
 
 document.querySelectorAll('.seg button').forEach((b) => b.addEventListener('click', () => {
