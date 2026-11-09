@@ -10,7 +10,11 @@ if (fs.existsSync(envPath)) {
   }
 }
 
-const env = (k, d) => (process.env[k] === undefined || process.env[k] === '' ? d : process.env[k]);
+// Trim: values pasted into a host's settings often pick up a trailing space or line break.
+const env = (k, d) => {
+  const v = process.env[k]?.trim();
+  return v === undefined || v === '' ? d : v;
+};
 const num = (k, d) => Number(env(k, d));
 
 export const config = {

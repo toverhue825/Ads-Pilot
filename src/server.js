@@ -52,7 +52,7 @@ const user = (req) => verify(cookies(req).session)?.name ?? null;
 app.get('/login', (_req, res) => res.sendFile(path.join(PUBLIC, 'login.html')));
 app.post('/login', (req, res) => {
   if (tooMany(req.ip)) return res.redirect('/login?error=locked');
-  const pw = String(req.body.password ?? '');
+  const pw = String(req.body.password ?? '').trim();
   const name = String(req.body.name ?? '').trim().slice(0, 60);
   const ok = name && pw.length === config.dashboardPassword.length &&
     crypto.timingSafeEqual(Buffer.from(pw), Buffer.from(config.dashboardPassword));
