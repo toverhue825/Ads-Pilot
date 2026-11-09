@@ -95,6 +95,8 @@ export async function generateInsight(accountId, actor) {
   if (!aiEnabled()) throw new Error('AI insights are off. Add ANTHROPIC_API_KEY to .env to turn them on.');
   const input = buildInput(accountId);
   if (!input.brands.length) throw new Error('No brands with suggestions turned on.');
+  const spent = input.brands.some((b) => (b.totals.last_7d.spend ?? 0) > 0 || (b.totals.prior_7d.spend ?? 0) > 0);
+  if (!spent) throw new Error('No ad spend in the last two weeks yet, so there is nothing to review. Try again a few days after your first campaign starts.');
 
   let response;
   try {

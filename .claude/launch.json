@@ -5,6 +5,7 @@
       "name": "ads-pilot",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["start"],
+      "cwd": "C:\\Users\\Travis Overhue\\Downloads\\ads-pilot",
       "port": 3000
     }
   ]

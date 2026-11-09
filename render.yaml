@@ -22,9 +22,9 @@ services:
       - key: DASHBOARD_PASSWORD  # at least 12 characters
         sync: false
 
-      # Facebook: switch DATA_SOURCE to "meta" and fill in the two META values once access is set up.
+      # Facebook: live data from the ad account(s) in META_AD_ACCOUNT_IDS ("sample" = fake demo data).
       - key: DATA_SOURCE
-        value: sample
+        value: meta
       - key: META_ACCESS_TOKEN
         sync: false
       - key: META_AD_ACCOUNT_IDS

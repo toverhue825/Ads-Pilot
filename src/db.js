@@ -96,6 +96,16 @@ db.exec(`
     input_tokens INTEGER, output_tokens INTEGER
   );
 `);
+// Switching between sample and live Facebook data: start clean so fake brands don't linger.
+// (Databases from before this check have no record, but sample brands give them away.)
+const lastSource = db.prepare("SELECT value FROM meta WHERE key = 'data_source'").get()?.value
+  ?? (db.prepare("SELECT 1 FROM accounts WHERE id LIKE 'act_sample%' LIMIT 1").get() ? 'sample' : null);
+if (lastSource && lastSource !== config.dataSource) {
+  db.exec('DELETE FROM suggestions; DELETE FROM insights; DELETE FROM adsets; DELETE FROM campaigns; DELETE FROM accounts; DELETE FROM ai_insights;');
+  console.log(`[db] data source changed ${lastSource} -> ${config.dataSource}; cleared old data`);
+}
+db.prepare("INSERT INTO meta (key, value) VALUES ('data_source', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(config.dataSource);
+
 // Additive columns (safe on existing databases).
 const hasCol = (table, col) => db.prepare(`PRAGMA table_info(${table})`).all().some((c) => c.name === col);
 if (!hasCol('accounts', 'context')) db.exec("ALTER TABLE accounts ADD COLUMN context TEXT NOT NULL DEFAULT ''");

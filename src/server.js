@@ -269,7 +269,7 @@ setInterval(async () => {
   if (d.getHours() >= config.digestHour && getMeta('last_digest') !== today) {
     setMeta('last_digest', today);
     // Weekly AI review (all brands), written just before that day's email so the email can include it.
-    if (aiEnabled() && d.getDay() === config.ai.weeklyDay) {
+    if (aiEnabled() && d.getDay() === config.ai.weeklyDay && accountTotals(windows(14).cur).spend > 0) {
       try { await generateInsight(null, 'scheduler'); console.log('[ai] weekly review written'); } catch (e) { console.error('[ai] failed:', e.message); }
     }
     try { console.log('[digest]', await sendDigest()); } catch (e) { console.error('[digest] failed:', e.message); }

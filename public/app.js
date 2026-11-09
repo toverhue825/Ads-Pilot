@@ -107,7 +107,7 @@ function barChart(el, rows) {
   sizeTo(el);
   const n = rows.length, inner = W - M.l - M.r, step = inner / n;
   const x = (i) => M.l + step * (i + 0.5);
-  const max = niceMax(Math.max(...rows.map((r) => r.leads), 1));
+  const max = niceMax(Math.max(...rows.map((r) => r.leads), 4)); // at least 0–4 so the scale reads cleanly
   const { y, svg } = frame(max, (v) => fmt.int(v));
   const bw = Math.max(3, Math.min(22, step - 2));
   const bars = rows.map((r, i) => {
@@ -157,6 +157,12 @@ function renderCampaigns(rows) {
   $('#campSub').textContent = `${active.length} active · ${fmt.money(budget)}/day of ${fmt.money(target.dailyCap)} cap`;
   const showBrand = !account && me.accounts.length > 1;
   const names = acctById();
+  if (!rows.length) {
+    $('#campaigns').innerHTML = `<tbody><tr><td class="empty" style="white-space:normal">
+      <div class="big">🚀</div><b>No campaigns yet</b>
+      <p class="muted">Create a campaign in Ads Manager under this ad account. It will show up here within an hour of launching.</p></td></tr></tbody>`;
+    return;
+  }
   $('#campaigns').innerHTML = `<thead><tr><th>Campaign</th><th>Health</th><th class="num">Budget/day</th><th class="num">Spend</th>
     <th class="num">Leads</th><th class="num">Cost/lead</th><th class="num">CTR</th><th class="num">Click→lead</th><th class="num">Freq.</th></tr></thead>
     <tbody>${rows.map((c) => `<tr>
@@ -219,7 +225,13 @@ async function loadOverview() {
   $('#leadsSub').textContent = `${fmt.int(o.totals.leads)} total`;
   renderCampaigns(o.campaigns);
   const t = o.totals, onTarget = t.cpl != null && t.cpl <= target.cpl;
-  $('#headline').textContent = `${fmt.int(t.leads)} leads at ${fmt.money(t.cpl)} each over the last ${days} days. ${onTarget ? 'Nicely under your target.' : `That's above your ${fmt.money(target.cpl)} target.`}`;
+  if (!t.spend && !o.previous.spend) {
+    $('#headline').textContent = me.accounts.length
+      ? 'Connected to Facebook. Waiting for your first campaign to spend; numbers appear within an hour of launch.'
+      : 'Waiting for the first sync with Facebook.';
+    return;
+  }
+  $('#headline').textContent =`${fmt.int(t.leads)} leads at ${fmt.money(t.cpl)} each over the last ${days} days. ${onTarget ? 'Nicely under your target.' : `That's above your ${fmt.money(target.cpl)} target.`}`;
 }
 
 // ---------- AI review ----------
