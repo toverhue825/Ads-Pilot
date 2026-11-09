@@ -2,7 +2,7 @@
 // content library, lists what still needs filming, and tracks each video through production.
 import Anthropic from '@anthropic-ai/sdk';
 import { config } from './config.js';
-import { db, now, audit } from './db.js';
+import { db, now, audit, brandBrief } from './db.js';
 import { catalogForPrompt, getMedia } from './library.js';
 
 db.exec(`
@@ -83,7 +83,7 @@ export async function planVideo(accountId, req, actor) {
 
   const brief = [
     `Brand: ${acct.name}`,
-    `What the brand sells and to whom: ${acct.context || '(not provided)'}`,
+    brandBrief(acct),
     `Video idea / ad angle: ${idea}`,
     req.offer && `Offer to feature: ${req.offer}`,
     `Length: ${length} seconds. Format: ${format}.`,

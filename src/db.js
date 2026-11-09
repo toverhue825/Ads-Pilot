@@ -109,6 +109,15 @@ db.prepare("INSERT INTO meta (key, value) VALUES ('data_source', ?) ON CONFLICT(
 // Additive columns (safe on existing databases).
 const hasCol = (table, col) => db.prepare(`PRAGMA table_info(${table})`).all().some((c) => c.name === col);
 if (!hasCol('accounts', 'context')) db.exec("ALTER TABLE accounts ADD COLUMN context TEXT NOT NULL DEFAULT ''");
+// Brand facts: specifics the AI may state in ads (turnaround, warranty, delivery, financing…).
+if (!hasCol('accounts', 'facts')) db.exec("ALTER TABLE accounts ADD COLUMN facts TEXT NOT NULL DEFAULT ''");
+
+// One line for prompts: what the brand is + the facts it can safely claim.
+export function brandBrief(acct) {
+  const about = acct?.context?.trim() || '(not provided)';
+  const facts = acct?.facts?.trim();
+  return `About the brand: ${about}\nBrand facts (true; use these for specifics like times, warranties, prices, service area; never invent others):\n${facts || '(none provided)'}`;
+}
 
 db.prepare("INSERT INTO meta (key, value) VALUES ('schema_version', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(SCHEMA_VERSION);
 

@@ -432,44 +432,84 @@ async function openPublish(card, planId, idx, plan) {
   const dlg = $('#publish'), body = $('#publishBody');
   body.innerHTML = '<p class="muted">Checking this brand\'s Facebook settings…</p>';
   dlg.showModal();
-  const o = await api(`/api/publish/options?account=${encodeURIComponent(acct)}`);
+  const imageIdea = plan.result.ads[idx].image_idea;
+  const [o, sug] = await Promise.all([
+    api(`/api/publish/options?account=${encodeURIComponent(acct)}`),
+    api(`/api/library/suggest?q=${encodeURIComponent(imageIdea)}`).catch(() => ({ items: [] })),
+  ]);
   const s = o.settings ?? {};
-  const missing = [!o.live && 'live Facebook data', !s.page_id && 'the Facebook Page', !(s.lead_form_id || s.website) && 'a lead form or website'].filter(Boolean);
-  const placeholders = /\[[^\]]+\]/.test(`${pubDraft.primary_text} ${pubDraft.headline} ${pubDraft.description}`);
   const pageName = o.pages?.find((p) => p.id === s.page_id)?.name;
+  const setup = [
+    !o.live && 'Live Facebook data is off.',
+    !s.page_id && (o.pages?.length ? 'Pick which Facebook Page the ads run as.' : "The dashboard can't see your Facebook Page yet. Generate the SbdAgent token with the Page permissions and update it in Render."),
+    !(s.lead_form_id || s.website) && 'Add a lead form or your website.',
+  ].filter(Boolean);
+  const modeOpts = [
+    s.lead_form_id && `<option value="form">Facebook lead form</option>`,
+    s.website && `<option value="website">Website (${esc(s.website.replace(/^https?:\/\//, ''))})${s.pixel_id ? '' : ', optimized for clicks'}</option>`,
+  ].filter(Boolean);
+  pubImage = null; let pubMedia = sug.items?.[0]?.id ?? null; // best library match pre-selected
   body.innerHTML = `
-    <div class="fb-ad" style="box-shadow:none;margin-bottom:14px"><div class="ptext">${esc(pubDraft.primary_text)}</div>
-      <div class="bar"><div><div class="hl">${esc(pubDraft.headline)}</div><div class="desc">${esc(pubDraft.description)}</div></div><span class="cta">${esc(CTA_LABEL[pubDraft.cta] ?? pubDraft.cta)}</span></div></div>
-    ${missing.length ? `<p class="error">Set up ${missing.join(' and ')} first under ⚙ Targets &amp; limits → Facebook publishing.</p>` : ''}
-    ${placeholders ? '<p class="error">This ad still has [bracketed] placeholders. Close this, click the text in the ad to fill them in, then try again.</p>' : ''}
-    <form id="publishForm" class="studio-form" style="margin-top:0">
+    ${o.autoPicked?.length ? `<p class="ok-note">✓ Set up automatically: ${o.autoPicked.map(esc).join(', ')}.</p>` : ''}
+    ${setup.length ? `<div class="error"><b>One-time setup needed:</b><ul style="margin:6px 0 8px 18px;padding:0">${setup.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>
+      <button class="btn btn-ghost" type="button" id="pubSettings">Open ⚙ Targets &amp; limits</button></div>` : ''}
+    <form id="publishForm" class="studio-form" style="margin-top:6px">
+      <label class="field wide"><span>Primary text <span class="chars" data-count="pt"></span></span>
+        <textarea name="primary_text" rows="3">${esc(pubDraft.primary_text)}</textarea></label>
+      <label class="field"><span>Headline <span class="chars" data-count="hl"></span></span><input name="headline" value="${esc(pubDraft.headline)}"></label>
+      <label class="field"><span>Description <span class="chars" data-count="ds"></span></span><input name="description" value="${esc(pubDraft.description)}"></label>
+      <p class="error wide" id="pubBrackets" hidden>Replace the [bracketed] parts with real details (or delete them). Tip: add facts like these to ⚙ Targets &amp; limits → Brand facts and future ads will fill them in.</p>
       <label class="field"><span>Daily budget</span><div class="input-wrap"><span class="unit pre">$</span>
         <input class="has-pre" type="number" name="budget" min="5" max="${s.daily_cap}" step="1" value="${Math.min(20, s.daily_cap)}" required></div>
         <small class="muted">Max $${s.daily_cap}/day (this brand's cap)</small></label>
-      <label class="field"><span>Send people to</span><select name="mode">
-        <option value="form" ${s.lead_form_id ? '' : 'disabled'}>Facebook lead form${s.lead_form_id ? '' : ' (not set up)'}</option>
-        <option value="website" ${s.website ? '' : 'disabled'} ${!s.lead_form_id && s.website ? 'selected' : ''}>Website${s.website ? ` (${esc(s.website.replace(/^https?:\/\//, ''))})` : ' (not set up)'}${s.website && !s.pixel_id ? ', optimized for clicks (no pixel)' : ''}</option>
-      </select></label>
-      <label class="field wide"><span>Image (JPG or PNG; square 1080×1080 works everywhere)</span>
-        <input type="file" name="image" accept="image/jpeg,image/png" required>
-        <small class="muted">Idea from the Ad Studio: ${esc(plan.result.ads[idx].image_idea)}</small></label>
-      <div class="thumbs wide" id="pubThumb"></div>
+      <label class="field"><span>Send people to</span>
+        ${modeOpts.length ? `<select name="mode">${modeOpts.join('')}</select>` : '<select name="mode" disabled><option>Set up a lead form or website first</option></select>'}</label>
+      <div class="field wide"><span>Image</span>
+        ${sug.items?.length ? `<div class="pick-grid" id="pubPicks">${sug.items.map((m, i) => `
+          <button type="button" class="pick ${i === 0 ? 'on' : ''}" data-media="${esc(m.id)}" title="${esc(m.description)}">
+            <img src="/api/library/${encodeURIComponent(m.id)}/thumb" alt="${esc(m.description)}">${i === 0 ? '<span class="badge">Best match</span>' : ''}</button>`).join('')}</div>
+          <small class="muted">Suggested from your library for: "${esc(imageIdea)}". Or upload your own:</small>`
+          : `<small class="muted">Idea: ${esc(imageIdea)}${'<br>'}Tip: connect your Drive library and the best matching photo is picked for you.</small>`}
+        <input type="file" name="image" accept="image/jpeg,image/png" style="margin-top:6px">
+        <div class="thumbs" id="pubThumb"></div></div>
       <p class="muted small wide">Creates a new campaign, ad set and ad as <b>PAUSED</b>${pageName ? ` on the ${esc(pageName)} Page` : ''}, targeting the US, ages 25+, with Facebook's Advantage+ audience. Nothing spends until you review it in Ads Manager and turn it on.</p>
       <div class="studio-actions wide"><span class="muted small" id="pubStatus"></span>
-        <button class="btn btn-primary" type="submit" ${missing.length || placeholders ? 'disabled' : ''}>Create paused ad</button></div>
+        <button class="btn btn-primary" type="submit" ${setup.length ? 'disabled' : ''}>Create paused ad</button></div>
     </form>`;
-  body.querySelector('[name=image]').addEventListener('change', async (ev) => {
-    const f = ev.target.files[0]; if (!f) return;
-    try { pubImage = await shrinkTo(f, 1440, f.type === 'image/png' ? 'image/png' : 'image/jpeg'); $('#pubThumb').innerHTML = `<figure><img src="${pubImage.url}" alt="Ad image preview"></figure>`; }
-    catch { toast("Couldn't read that image."); }
+  const form = body.querySelector('#publishForm');
+  const check = () => {
+    const pt = form.elements.primary_text.value, hl = form.elements.headline.value, ds = form.elements.description.value;
+    body.querySelector('[data-count="pt"]').outerHTML = `<span data-count="pt">${charCount(pt, 125)}</span>`;
+    body.querySelector('[data-count="hl"]').outerHTML = `<span data-count="hl">${charCount(hl, 40)}</span>`;
+    body.querySelector('[data-count="ds"]').outerHTML = `<span data-count="ds">${charCount(ds, 30)}</span>`;
+    const br = /\[[^\]]+\]/.test(`${pt} ${hl} ${ds}`);
+    $('#pubBrackets').hidden = !br;
+    form.querySelector('button[type=submit]').disabled = Boolean(setup.length || br);
+  };
+  form.addEventListener('input', check); check();
+  body.querySelector('#pubSettings')?.addEventListener('click', () => { $('#publish').close(); renderLimits(); $('#limits').showModal(); });
+  body.querySelector('#pubPicks')?.addEventListener('click', (ev) => {
+    const b = ev.target.closest('[data-media]'); if (!b) return;
+    pubMedia = b.dataset.media; pubImage = null; $('#pubThumb').innerHTML = ''; form.elements.image.value = '';
+    body.querySelectorAll('.pick').forEach((x) => x.classList.toggle('on', x === b));
   });
-  body.querySelector('#publishForm').addEventListener('submit', async (ev) => {
+  form.elements.image.addEventListener('change', async (ev) => {
+    const f = ev.target.files[0]; if (!f) return;
+    try {
+      pubImage = await shrinkTo(f, 1440, f.type === 'image/png' ? 'image/png' : 'image/jpeg'); pubMedia = null;
+      body.querySelectorAll('.pick').forEach((x) => x.classList.remove('on'));
+      $('#pubThumb').innerHTML = `<figure><img src="${pubImage.url}" alt="Ad image preview"></figure>`;
+    } catch { toast("Couldn't read that image."); }
+  });
+  form.addEventListener('submit', async (ev) => {
     ev.preventDefault();
     const f = ev.target, btn = f.querySelector('button[type=submit]'), st = $('#pubStatus');
-    if (!pubImage) { st.textContent = 'Add an image first.'; return; }
+    if (!pubImage && !pubMedia) { st.textContent = 'Pick a photo or upload one first.'; return; }
     btn.disabled = true; st.textContent = 'Creating in Facebook… (about 10–20 seconds)';
     const r = await api('/api/publish', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...pubDraft, dailyBudget: Number(f.elements.budget.value), mode: f.elements.mode.value, image: { type: pubImage.type, data: pubImage.data } }) });
+      body: JSON.stringify({ ...pubDraft, primary_text: f.elements.primary_text.value, headline: f.elements.headline.value, description: f.elements.description.value,
+        dailyBudget: Number(f.elements.budget.value), mode: f.elements.mode.value,
+        ...(pubImage ? { image: { type: pubImage.type, data: pubImage.data } } : { mediaId: pubMedia }) }) });
     if (!r.ok) { btn.disabled = false; st.innerHTML = `<span class="crit-ink">${esc(r.error)}</span>`; return; }
     body.innerHTML = `<div class="empty"><div class="big">✅</div><b>Created, paused</b>
       <p class="muted">"${esc(r.name)}" is in your ad account and isn't spending. Review the targeting, budget and preview, then turn it on when you're happy.</p>
@@ -589,6 +629,15 @@ function renderLimits() {
       <label class="field" style="margin-top:12px"><span>What this brand sells, to whom, and its website</span>
         <textarea name="context" maxlength="1500" placeholder="e.g. Steel buildings for farms, shops and garages in the Midwest. Customers are farmers and small business owners. We offer free quotes and fast delivery.">${esc(a.context ?? '')}</textarea>
         <small>Helps the AI review write ad copy that fits. Don't include anything you wouldn't put in an ad.</small></label>
+      <label class="field" style="margin-top:12px"><span>Brand facts the AI may use in ads</span>
+        <textarea name="facts" rows="6" maxlength="2500" placeholder="One per line, only things that are true. For example:
+Quotes back within 24 hours
+Free engineered drawings with every quote
+20-year structural warranty
+Delivery in 4–6 weeks in KS, NE, OK, MO
+Financing available for qualified buyers
+Website: https://www.steelbuildingdepot.com">${esc(a.facts ?? '')}</textarea>
+        <small>With these filled in, the Ad Studio, Videos and Google posts write ready-to-run copy instead of [bracketed] blanks.</small></label>
       <fieldset class="pub">
         <legend>Facebook publishing <span class="muted small">(for "Create in Facebook" in the Ad Studio)</span></legend>
         <div class="fields two">
@@ -626,6 +675,7 @@ $('#limitsBody').addEventListener('submit', async (e) => {
   const body = Object.fromEntries(LIMIT_FIELDS.map((f) => [f.key, Number(form.elements[f.key].value)]));
   body.enabled = form.elements.enabled.checked;
   body.context = form.elements.context.value;
+  body.facts = form.elements.facts.value;
   for (const k of ['page_id', 'website', 'pixel_id', 'lead_form_id']) body[k] = form.elements[k].value;
   btn.disabled = true; status.textContent = 'Saving…';
   const r = await api(`/api/accounts/${encodeURIComponent(form.dataset.id)}`, {

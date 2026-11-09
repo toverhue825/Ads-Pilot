@@ -61,12 +61,21 @@ export async function publishOptions(accountId) {
     const r = await get(`${accountId}/adspixels`, { fields: 'id,name', limit: '50' });
     out.pixels = r.data.map((p) => ({ id: p.id, name: p.name }));
   } catch (e) { out.notes.push(`Couldn't list pixels (${e.message}).`); }
-  const acct = db.prepare('SELECT page_id FROM accounts WHERE id = ?').get(accountId);
+  // Auto-pick: if the brand has nothing set and Facebook offers exactly one choice, use it.
+  const save = (col, val, label) => { db.prepare(`UPDATE accounts SET ${col} = ? WHERE id = ? AND ${col} = ''`).run(val, accountId); out.autoPicked.push(label); };
+  out.autoPicked = [];
+  let acct = db.prepare('SELECT page_id, pixel_id, lead_form_id, website, facts FROM accounts WHERE id = ?').get(accountId);
+  const factUrl = acct?.facts?.match(/https?:\/\/[^\s)]+\.[^\s)]+/)?.[0];
+  if (acct && !acct.website && factUrl) save('website', factUrl.replace(/[.,;]+$/, ''), 'website from your brand facts');
+  if (acct && !acct.page_id && out.pages.length === 1) save('page_id', out.pages[0].id, `Page "${out.pages[0].name}"`);
+  if (acct && !acct.pixel_id && out.pixels.length === 1) save('pixel_id', out.pixels[0].id, `pixel "${out.pixels[0].name}"`);
+  acct = db.prepare('SELECT page_id, lead_form_id FROM accounts WHERE id = ?').get(accountId);
   const pageToken = acct?.page_id && pageTokens.get(acct.page_id);
   if (pageToken) {
     try {
       const r = await get(`${acct.page_id}/leadgen_forms`, { fields: 'id,name,status', limit: '50' }, pageToken);
-      out.forms = r.data.filter((f) => f.status !== 'ARCHIVED').map((f) => ({ id: f.id, name: f.name }));
+      out.forms = r.data.filter((f) => f.status === 'ACTIVE' || !f.status).map((f) => ({ id: f.id, name: f.name }));
+      if (!acct.lead_form_id && out.forms.length === 1) save('lead_form_id', out.forms[0].id, `lead form "${out.forms[0].name}"`);
     } catch (e) { out.notes.push(`Couldn't list lead forms (${e.message}). You can type the form ID instead.`); }
   }
   return out;

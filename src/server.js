@@ -10,7 +10,7 @@ import { buildDigest, sendDigest, sendAlert } from './email.js';
 import { recordOk, recordFail, problems, setNotifier } from './health.js';
 import { startPlan, getPlan, listPlans } from './studio.js';
 import { publishOptions, createPausedAd } from './publish.js';
-import { syncLibrary, searchLibrary, libraryStatus, getThumb, downloadImage } from './library.js';
+import { syncLibrary, searchLibrary, libraryStatus, getThumb, downloadImage, suggestPhotos, adReadyImage } from './library.js';
 import { planVideo, listVideos, setVideoStatus, STAGES } from './video.js';
 import { gbpConfigured, gbpAuthUrl, gbpFinishAuth, gbpDisconnect, gbpConnected, driveConfigured, serviceAccountEmail } from './google.js';
 import { gbpStatus, listLocations, chooseLocation, syncReviews, listReviews, postReply, draftPost, listPosts, publishPost, syncStats } from './gbp.js';
@@ -134,7 +134,8 @@ app.use((req, res, next) => {
   if (req.method === 'GET' && /\.(css|svg|png|ico)$/.test(req.path)) return next(); // login page styling
   return res.redirect('/login');
 });
-app.use(express.static(PUBLIC));
+// Always re-check scripts and styles so everyone gets updates right after a deploy.
+app.use(express.static(PUBLIC, { setHeaders: (res) => res.setHeader('Cache-Control', 'no-cache') }));
 
 async function decide(id, decision, actor) {
   const s = db.prepare('SELECT * FROM suggestions WHERE id = ?').get(id);
@@ -251,6 +252,10 @@ app.post('/api/accounts/:id', (req, res) => {
     if (v && !/^https?:\/\/[^\s]+\.[^\s]+$/.test(v)) return res.status(400).json({ ok: false, error: 'Website should start with https://' });
     if (v !== (a.website ?? '')) changes.push(['website', v, 'Website updated']);
   }
+  if (req.body.facts !== undefined) {
+    const v = String(req.body.facts).trim().slice(0, 2500);
+    if (v !== (a.facts ?? '')) changes.push(['facts', v, 'Brand facts updated']);
+  }
   if (req.body.context !== undefined) {
     const v = String(req.body.context).trim().slice(0, 1500);
     if (v !== (a.context ?? '')) changes.push(['context', v, 'Brand description updated']);
@@ -325,6 +330,7 @@ app.post('/api/library/sync', wrap(async () => {
   if (!r.skipped && !r.busy) await recordOk('drive');
   return { ok: true, ...r };
 }));
+app.get('/api/library/suggest', (req, res) => res.json({ items: suggestPhotos(String(req.query.q ?? '')) }));
 app.get('/api/library/:id/thumb', (req, res) => {
   const t = getThumb(req.params.id);
   if (!t) return res.status(404).end();
@@ -376,20 +382,23 @@ app.post('/api/gbp/disconnect', wrap(async (req) => { gbpDisconnect(); audit(use
 app.get('/api/publish/options', async (req, res) => {
   const accountId = pickAccount(req.query.account);
   if (!accountId) return res.status(400).json({ error: 'Pick a brand first.' });
+  const options = await publishOptions(accountId); // may auto-fill Page / form / pixel / website
   const a = db.prepare('SELECT page_id, website, pixel_id, lead_form_id, daily_cap FROM accounts WHERE id = ?').get(accountId);
-  res.json({ live: config.dataSource === 'meta', settings: a, ...(await publishOptions(accountId)) });
+  res.json({ live: config.dataSource === 'meta', settings: a, ...options });
 });
 const publishing = new Set();
 app.post('/api/publish', async (req, res) => {
   const accountId = pickAccount(req.body.account);
   if (!accountId) return res.status(400).json({ ok: false, error: 'Pick a brand first.' });
   if (publishing.has(accountId)) return res.status(409).json({ ok: false, error: 'Already creating an ad for this brand. One moment.' });
-  const img = req.body.image;
-  if (!img || !['image/jpeg', 'image/png'].includes(img.type) || typeof img.data !== 'string' || img.data.length > 12_000_000) {
-    return res.status(400).json({ ok: false, error: 'Add a JPG or PNG image.' });
+  let img = req.body.image;
+  const mediaId = typeof req.body.mediaId === 'string' && req.body.mediaId ? req.body.mediaId : null;
+  if (!mediaId && (!img || !['image/jpeg', 'image/png'].includes(img.type) || typeof img.data !== 'string' || img.data.length > 12_000_000)) {
+    return res.status(400).json({ ok: false, error: 'Pick a library photo or add a JPG/PNG image.' });
   }
   publishing.add(accountId);
   try {
+    if (mediaId) img = await adReadyImage(mediaId); // fetched from Drive on the server
     const r = await createPausedAd(accountId, {
       planId: Number(req.body.planId) || null, adIndex: Number(req.body.adIndex),
       primary_text: clean(req.body.primary_text ?? ''), headline: clean(req.body.headline ?? ''), description: clean(req.body.description ?? ''),

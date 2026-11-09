@@ -3,7 +3,7 @@
 // created in Facebook from here.
 import Anthropic from '@anthropic-ai/sdk';
 import { config } from './config.js';
-import { db, now, audit } from './db.js';
+import { db, now, audit, brandBrief } from './db.js';
 import { windows, campaignTotals } from './metrics.js';
 
 db.exec(`
@@ -33,7 +33,7 @@ How to work:
 4. Write original ads for the brand. Learn from what works for competitors, but never copy their wording, and never name or disparage competitors in ad copy.
 
 Rules for the ads:
-- Only claim what the brand description, offer, or brand's own website supports. Never invent prices, discounts, guarantees, delivery times, warranties, certifications or awards. If a strong claim needs facts you don't have, write it as a placeholder in [brackets] for the user to fill in, e.g. "[X]-year warranty".
+- Use the brand facts for specifics (turnaround times, warranties, delivery, financing, service area): they are true and approved for ads. Only claim what the brand facts, description, offer, or brand's own website support. Never invent prices, discounts, guarantees, delivery times, warranties, certifications or awards. Prefer writing around a missing fact over using a placeholder; use [brackets] only when the ad truly needs a fact that isn't provided.
 - Follow Meta advertising policy: no personal attributes ("Are you a farmer?" style call-outs about the viewer), no fake urgency, no before/after or misleading claims.
 - Length limits (count characters carefully; Facebook cuts off anything longer): primary_text 125 characters or fewer, with the hook first. headline 40 or fewer. description 30 or fewer. long_text is an optional fuller version of the primary text (up to about 400 characters) for testing a "See more" style; leave it empty if not useful.
 - If the brand description includes a website, read it to learn the brand's real offers before writing.
@@ -147,7 +147,7 @@ async function run(id, acct, request, images) {
 
   const brief = [
     `Brand: ${acct.name}`,
-    `What the brand sells and to whom: ${acct.context || '(not provided; research the brand name too if useful)'}`,
+    brandBrief(acct),
     `Target cost per lead: $${acct.target_cpl}`,
     `Competitors to research: ${request.competitors.join(', ')}`,
     request.offer && `Offer or promotion to feature: ${request.offer}`,

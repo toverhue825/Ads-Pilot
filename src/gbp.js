@@ -2,7 +2,7 @@
 // Claude with a photo from the content library, and profile stats (calls, directions, website clicks).
 import Anthropic from '@anthropic-ai/sdk';
 import { config } from './config.js';
-import { db, now, getMeta, setMeta, audit } from './db.js';
+import { db, now, getMeta, setMeta, audit, brandBrief } from './db.js';
 import { gbp, gbpConnected } from './google.js';
 import { sign } from './tokens.js';
 import { getMedia } from './library.js';
@@ -97,7 +97,8 @@ export async function draftReplies(limit = 15) {
   const acct = db.prepare("SELECT name, context FROM accounts ORDER BY name LIMIT 1").get();
   const l = loc();
   const prompt = `Write a reply from the business owner to each Google review below.
-Business: ${l?.title ?? acct?.name ?? 'our company'}. ${acct?.context ? `About the business: ${acct.context}` : ''}
+Business: ${l?.title ?? acct?.name ?? 'our company'}.
+${brandBrief(acct)}
 
 Guidelines:
 - Warm, genuine, specific to what they wrote. Use their first name if it looks like a real name. 2-4 sentences, under 80 words.
@@ -154,7 +155,7 @@ export async function draftPost({ topic, mediaId, accountId }, actor) {
   const thumb = m ? db.prepare('SELECT thumb FROM media WHERE id = ?').get(m.id)?.thumb : null;
   if (thumb) content.push({ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: thumb } });
   content.push({ type: 'text', text: `Write a Google Business Profile post for ${acct?.name ?? 'the business'}.
-About the business: ${acct?.context || '(not provided)'}
+${brandBrief(acct)}
 Topic: ${String(topic ?? '').slice(0, 500) || 'A recent project or why customers choose us'}
 ${m ? `It will use the photo above (${m.description ?? m.name}). Refer to what's in it naturally.` : ''}
 Rules: only facts given here; put anything unknown in [brackets]; no prices or discounts unless given; no hashtags; Google forbids phone numbers in post text.` });

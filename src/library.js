@@ -180,6 +180,42 @@ export function catalogForPrompt(limit = 150) {
     WHERE tagged_at IS NOT NULL AND quality != 'poor' ORDER BY modified_at DESC LIMIT ?`).all(limit)
     .map((m) => `${m.id} | ${m.kind}${m.duration_ms ? ` ${Math.round(m.duration_ms / 1000)}s` : ''} | ${m.description} | tags: ${JSON.parse(m.tags ?? '[]').join(', ')}`);
 }
+// Best library photos for an image idea (simple keyword match on Claude's descriptions and tags).
+const STOP = new Set(['with', 'from', 'that', 'this', 'your', 'their', 'into', 'over', 'shot', 'photo', 'image', 'show', 'shows', 'card', 'text', 'overlay', 'option', 'clean']);
+export function suggestPhotos(text, limit = 6) {
+  const words = [...new Set(String(text).toLowerCase().match(/[a-z0-9×x]{3,}/g) ?? [])].filter((w) => !STOP.has(w)).slice(0, 25);
+  const rows = db.prepare(`SELECT id, name, description, tags, best_for, quality, width, height FROM media
+    WHERE kind = 'photo' AND tagged_at IS NOT NULL AND quality != 'poor'`).all();
+  return rows.map((r) => {
+    const tags = JSON.parse(r.tags ?? '[]').map((t) => t.toLowerCase());
+    const desc = (r.description ?? '').toLowerCase();
+    let score = 0;
+    for (const w of words) {
+      if (tags.some((t) => t.includes(w))) score += 2;
+      else if (desc.includes(w)) score += 1;
+    }
+    if (r.quality === 'great') score += 2;
+    if (JSON.parse(r.best_for ?? '[]').some((b) => b === 'ad image' || b === 'product shot')) score += 1;
+    if (r.width && r.height && r.width < 600) score -= 3; // too small for an ad
+    return { id: r.id, description: r.description ?? r.name, quality: r.quality, score };
+  }).filter((r) => r.score > 0).sort((a, b) => b.score - a.score).slice(0, limit);
+}
+
+// A Facebook-ready image (JPEG/PNG under ~8 MB) for a library photo, as base64.
+// iPhone HEIC and very large files are converted via Drive's own JPEG preview.
+export async function adReadyImage(id) {
+  const m = getMedia(id);
+  if (!m || m.kind !== 'photo') throw new Error('Pick a photo from the library.');
+  if (/^image\/(jpeg|png)$/.test(m.mime) && (!m.size || m.size < 8e6)) {
+    const bytes = await drive(`files/${id}`, { alt: 'media', supportsAllDrives: 'true' }, { raw: true });
+    return { type: m.mime, data: bytes.toString('base64') };
+  }
+  const meta = await drive(`files/${id}`, { fields: 'thumbnailLink', supportsAllDrives: 'true' });
+  const bytes = meta.thumbnailLink && await driveBytes(meta.thumbnailLink.replace(/=s\d+$/, '=s2000'));
+  if (!bytes) throw new Error("Couldn't convert that photo. Try a JPG or PNG version.");
+  return { type: 'image/jpeg', data: bytes.toString('base64') };
+}
+
 // Full-size file bytes (for publishing a photo to Google or Facebook). Images only, up to 15 MB.
 export async function downloadImage(id) {
   const m = getMedia(id);

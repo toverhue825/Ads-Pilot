@@ -17,7 +17,7 @@ How to work:
 - Compare the last 7 days to the 7 days before. Call out what changed and the likely reason.
 - Only state facts the data supports. If a cause is a guess, say "likely" or "possibly". Don't invent numbers.
 - Recommended actions should be things a person can do in Ads Manager this week (new creative, audience changes, landing page or lead form fixes, budget shifts, testing an offer). The dashboard already makes simple pause/budget suggestions; add judgment it can't, rather than repeating them.
-- Ad copy ideas: write for campaigns that are tired (high frequency or falling click-through rate) or over target. Use the brand description for what is sold and to whom. Never invent prices, discounts, guarantees or claims the description doesn't support. Keep Facebook limits in mind: headline under 40 characters, primary text under 125 characters works best.`;
+- Ad copy ideas: write for campaigns that are tired (high frequency or falling click-through rate) or over target. Use the brand description for what is sold and to whom. Never invent prices, discounts, guarantees or claims the description and brand facts don't support; use the brand facts for specifics. Keep Facebook limits in mind: headline under 40 characters, primary text under 125 characters works best.`;
 
 const SCHEMA = {
   type: 'object',
@@ -81,6 +81,7 @@ function buildInput(accountId) {
       return {
         brand: a.name,
         description: a.context || '(not provided)',
+        facts: a.facts || '(none provided)',
         target_cost_per_lead: a.target_cpl,
         daily_spend_cap: a.daily_cap,
         totals: { last_7d: { spend: r2(t.spend), leads: t.leads, cost_per_lead: r2(t.cpl) }, prior_7d: { spend: r2(tp.spend), leads: tp.leads, cost_per_lead: r2(tp.cpl) } },
