@@ -67,9 +67,9 @@ function renderKpis(cur, prev) {
 
 // ---------- Charts (hand-rolled SVG: one series each, hover tooltips) ----------
 // Drawn at the container's real pixel width (no stretching), redrawn on resize.
-let W = 520;
-const H = 220, M = { t: 14, r: 12, b: 26, l: 44 };
-const sizeTo = (el) => { W = Math.max(260, Math.round(el.clientWidth)); };
+let W = 520, H = 220;
+const M = { t: 14, r: 12, b: 26, l: 44 };
+const sizeTo = (el, height = 220) => { W = Math.max(260, Math.round(el.clientWidth)); H = height; };
 const niceMax = (v) => { if (!v) return 1; const p = 10 ** Math.floor(Math.log10(v)); return Math.ceil(v / p / 0.5) * 0.5 * p; };
 const shortDate = (d) => new Date(d + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 
@@ -91,10 +91,11 @@ function attachHover(el, rows, x, step, html) {
   const tip = document.createElement('div'); tip.className = 'tooltip'; el.appendChild(tip);
   const svg = el.querySelector('svg');
   const cross = svg.querySelector('.cross');
+  const cw = W, ch = H; // this chart's size (W/H change as other charts draw)
   svg.querySelectorAll('.hit').forEach((h) => {
     const i = Number(h.dataset.i);
     h.addEventListener('mouseenter', () => {
-      const box = svg.getBoundingClientRect(), sx = box.width / W, sy = box.height / H;
+      const box = svg.getBoundingClientRect(), sx = box.width / cw, sy = box.height / ch;
       tip.innerHTML = html(rows[i]);
       tip.style.left = `${x(i) * sx}px`; tip.style.top = `${Number(h.dataset.top) * sy}px`; tip.style.opacity = 1;
       if (cross) { cross.setAttribute('x1', x(i)); cross.setAttribute('x2', x(i)); cross.style.opacity = 1; }
@@ -122,26 +123,67 @@ function barChart(el, rows) {
   attachHover(el, rows, x, step, (r) => `${shortDate(r.date)}<br><b>${fmt.int(r.leads)} leads</b> · ${fmt.money(r.spend)} spent`);
 }
 
-function lineChart(el, rows, target) {
-  sizeTo(el);
+// One metric over time. opts: key, label, tick (axis format), tip (tooltip html), target (dashed line),
+// floor (smallest top of scale), height, area (soft fill under the line).
+function lineChart(el, rows, opts) {
+  const { key, label, tick, tip, target, floor = 0, height = 220, area = false } = opts;
+  sizeTo(el, height);
   const n = rows.length, inner = W - M.l - M.r, step = inner / Math.max(1, n - 1);
   const x = (i) => M.l + step * i;
-  const vals = rows.map((r) => r.cpl).filter((v) => v != null);
-  const max = niceMax(Math.max(target * 1.25, ...vals));
-  const { y, svg } = frame(max, (v) => `$${Math.round(v)}`);
-  let d = '', pen = false;
-  rows.forEach((r, i) => { if (r.cpl == null) { pen = false; return; } d += `${pen ? 'L' : 'M'}${x(i)},${y(r.cpl)}`; pen = true; });
-  const last = [...rows].reverse().find((r) => r.cpl != null);
+  const vals = rows.map((r) => r[key]).filter((v) => v != null);
+  const max = niceMax(Math.max(floor, target ? target * 1.25 : 0, ...vals));
+  const { y, svg } = frame(max, tick);
+  // Line breaks where a day has no value (e.g. no leads → no cost per lead).
+  let d = '', fill = '', pen = false, segStart = 0;
+  rows.forEach((r, i) => {
+    const v = r[key];
+    if (v == null) { if (pen && area) fill += `L${x(i - 1)},${y(0)}L${x(segStart)},${y(0)}Z`; pen = false; return; }
+    if (!pen) segStart = i;
+    d += `${pen ? 'L' : 'M'}${x(i)},${y(v)}`;
+    if (area) fill += `${pen ? 'L' : 'M'}${x(i)},${y(v)}`;
+    pen = true;
+  });
+  if (pen && area) fill += `L${x(n - 1)},${y(0)}L${x(segStart)},${y(0)}Z`;
+  const last = [...rows].reverse().find((r) => r[key] != null);
   const li = rows.lastIndexOf(last);
-  const ref = `<line class="ref" x1="${M.l}" x2="${W - M.r}" y1="${y(target)}" y2="${y(target)}"/>
-    <text class="ref-label" x="${W - M.r}" y="${y(target) - 6}" text-anchor="end">Target ${fmt.money(target)}</text>`;
-  const hits = rows.map((r, i) => `<rect class="hit" data-i="${i}" data-top="${r.cpl == null ? y(0) : y(r.cpl)}" x="${x(i) - step / 2}" y="${M.t}" width="${step}" height="${H - M.t - M.b}"/>`).join('');
-  el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="Cost per lead by day">${svg}${ref}
+  const ref = target ? `<line class="ref" x1="${M.l}" x2="${W - M.r}" y1="${y(target)}" y2="${y(target)}"/>
+    <text class="ref-label" x="${W - M.r}" y="${y(target) - 6}" text-anchor="end">Target ${fmt.money(target)}</text>` : '';
+  const hits = rows.map((r, i) => `<rect class="hit" data-i="${i}" data-top="${r[key] == null ? y(0) : y(r[key])}" x="${x(i) - step / 2}" y="${M.t}" width="${step}" height="${H - M.t - M.b}"/>`).join('');
+  el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="${esc(label)} by day" style="height:${H}px">${svg}
+    ${area && fill ? `<path d="${fill}" fill="var(--series-1)" opacity="0.10"/>` : ''}${ref}
     <line class="cross" x1="0" x2="0" y1="${M.t}" y2="${H - M.b}" style="opacity:0"/>
     <path d="${d}" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke"/>
-    ${last ? `<circle cx="${x(li)}" cy="${y(last.cpl)}" r="4.5" fill="var(--series-1)" stroke="#fff" stroke-width="2" vector-effect="non-scaling-stroke"/>` : ''}
+    ${last ? `<circle cx="${x(li)}" cy="${y(last[key])}" r="4.5" fill="var(--series-1)" stroke="#fff" stroke-width="2" vector-effect="non-scaling-stroke"/>` : ''}
     ${xLabels(rows, x)}${hits}</svg>`;
-  attachHover(el, rows, x, step, (r) => `${shortDate(r.date)}<br><b>${r.cpl == null ? 'No leads' : fmt.money(r.cpl) + ' per lead'}</b> · ${fmt.int(r.leads)} leads`);
+  attachHover(el, rows, x, step, tip);
+}
+
+// Small trend charts: one metric each, so every chart keeps a single honest axis.
+const shortMoney = (v) => (v === 0 ? '$0' : v >= 1000 ? `$${(v / 1000).toFixed(v >= 10000 ? 0 : 1)}k` : v >= 10 ? `$${Math.round(v)}` : `$${v.toFixed(2)}`);
+const shortPct = (v) => `${(v * 100).toFixed(v < 0.1 ? 1 : 0)}%`;
+const TRENDS = [
+  { key: 'spend', label: 'Spend per day', tick: shortMoney, val: fmt.money, help: 'What Facebook charged each day.' },
+  { key: 'cvr', label: 'Click → lead rate', tick: shortPct, val: fmt.pct, help: 'Share of clicks that became a lead. Drops point to the form or landing page.' },
+  { key: 'ctr', label: 'Click-through rate', tick: shortPct, val: fmt.pct, help: 'Share of people who clicked. Drops point to tired ads or the wrong audience.' },
+  { key: 'cpc', label: 'Cost per click', tick: shortMoney, val: fmt.money, help: 'Spend ÷ clicks.' },
+  { key: 'cpm', label: 'Cost per 1,000 views', tick: shortMoney, val: fmt.money, help: 'Rising CPM means competition for your audience is up.' },
+  { key: 'frequency', label: 'Frequency', tick: (v) => `${v.toFixed(1)}×`, val: fmt.x, help: 'Times each person saw your ads per day. Above ~3.5 people tune out.', floor: 1 },
+];
+function drawTrends(rows) {
+  const grid = $('#trends');
+  if (!grid.children.length) {
+    grid.innerHTML = TRENDS.map((t) => `<div class="card trend"><div class="card-head"><h2>${t.label}
+      <span class="help" title="${esc(t.help)}">?</span></h2><span class="sub" data-latest="${t.key}"></span></div>
+      <div class="chart" data-trend="${t.key}"></div></div>`).join('');
+  }
+  for (const t of TRENDS) {
+    const latest = [...rows].reverse().find((r) => r[t.key] != null);
+    grid.querySelector(`[data-latest="${t.key}"]`).textContent = latest ? `Latest ${t.val(latest[t.key])}` : '';
+    lineChart(grid.querySelector(`[data-trend="${t.key}"]`), rows, {
+      key: t.key, label: t.label, tick: t.tick, floor: t.floor ?? 0, height: 160, area: true,
+      tip: (r) => `${shortDate(r.date)}<br><b>${r[t.key] == null ? 'No data' : t.val(r[t.key])}</b>`,
+    });
+  }
 }
 
 // ---------- Campaign table ----------
@@ -211,7 +253,11 @@ async function loadActivity() {
 let lastDaily = [];
 const drawCharts = () => {
   barChart($('#leadsChart'), lastDaily);
-  lineChart($('#cplChart'), lastDaily, target.cpl);
+  lineChart($('#cplChart'), lastDaily, {
+    key: 'cpl', label: 'Cost per lead', target: target.cpl, tick: (v) => `$${Math.round(v)}`,
+    tip: (r) => `${shortDate(r.date)}<br><b>${r.cpl == null ? 'No leads' : fmt.money(r.cpl) + ' per lead'}</b> · ${fmt.int(r.leads)} leads`,
+  });
+  drawTrends(lastDaily);
 };
 let resizeT;
 addEventListener('resize', () => { clearTimeout(resizeT); resizeT = setTimeout(() => lastDaily.length && drawCharts(), 120); });

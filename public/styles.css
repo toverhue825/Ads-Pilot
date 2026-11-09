@@ -97,6 +97,18 @@ main.wrap { margin-top: -60px; padding-bottom: 48px; }
 .tooltip { position: absolute; pointer-events: none; background: var(--ink); color: #fff; font-size: 12px; padding: 7px 10px; border-radius: 9px; white-space: nowrap; transform: translate(-50%, -110%); opacity: 0; transition: opacity .1s; }
 .tooltip b { font-size: 14px; }
 
+/* ---------- Trends ---------- */
+.section-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin: 6px 2px 12px; }
+.section-head h2 { font-size: 18px; font-weight: 800; letter-spacing: -.01em; }
+.section-head .sub { font-size: 13px; color: var(--muted); }
+.trends { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
+@media (max-width: 1020px) { .trends { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 640px) { .trends { grid-template-columns: 1fr; } }
+.trend { padding: 16px 18px 12px; }
+.trend .card-head { margin-bottom: 8px; }
+.trend .card-head h2 { font-size: 14px; display: flex; align-items: center; gap: 6px; }
+.trend .card-head .sub { font-weight: 600; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+
 /* ---------- Suggestions ---------- */
 .suggestion { border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; margin-bottom: 12px; transition: opacity .2s, transform .2s; }
 .suggestion h3 { font-size: 15px; margin: 8px 0 4px; line-height: 1.35; }
