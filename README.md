@@ -70,6 +70,7 @@ Claude reads each brand's last 7 days against the week before and that brand's t
    - My Business Account Management API
    - My Business Business Information API
    - Business Profile Performance API
+   - Google Ads API
    - Google My Business API (this one may only appear after step 3 is approved)
 3. **Request Business Profile API access.** Search "Google Business Profile API access request form", choose **Application for Basic API access**, and give your project number. Google usually replies within days to a couple of weeks. Until then, the Google Business tab will show access or quota errors.
 4. **Drive access (service account):**
@@ -84,6 +85,24 @@ Claude reads each brand's last 7 days against the week before and that brand's t
    - **Clients → Create client → Web application**, with redirect URI `https://ads-pilot-e1dl.onrender.com/google/callback`.
    - Set `GOOGLE_OAUTH_CLIENT_ID` and `GOOGLE_OAUTH_CLIENT_SECRET` in Render.
    - On the dashboard: **Google Business → Connect with Google**, sign in with the account that manages the profile, then pick your location.
+
+### Google Ads
+
+Google Ads campaigns show on the **Ads tab** next to Facebook, marked with a green **G**. Facebook campaigns are marked with a blue **f**. Each Google Ads account appears in the brand picker as "Google Ads · …", with its own targets and limits. You get:
+- the same KPIs, charts, suggestions (pause, budget up or down), weekly AI review and approvals;
+- **"Block wasted search terms"**: searches that cost money in the last 30 days with no conversion. Approving adds them as **exact-match negative keywords**.
+
+Leads are Google Ads **conversions**, so make sure your quote form or calls are set up as conversions in Google Ads (Goals → Conversions).
+
+**Setup** (uses the same Google Cloud project and "Connect with Google" sign-in as Business Profile):
+1. In Google Cloud, also enable the **Google Ads API**.
+2. Create a free **Google Ads Manager account** (ads.google.com/home/tools/manager-accounts) and link your ad account to it (Manager → Accounts → **+** → link existing account; you accept the invite in the ad account).
+3. In the Manager account: **Admin → API Center**. Accept the terms, copy the **developer token**, and **apply for Basic access**. Google reviews it, usually in a few days. Until then the token only works with test accounts.
+4. In Render, set:
+   - `GOOGLE_ADS_DEVELOPER_TOKEN`
+   - `GOOGLE_ADS_CUSTOMER_IDS`: your ad account ID (top right in Google Ads; dashes are fine)
+   - `GOOGLE_ADS_LOGIN_CUSTOMER_ID`: the Manager account's ID
+5. On the dashboard: **Google Business → Connect with Google**, signing in as a user with access to both the Business Profile and the Google Ads account. If you connected before Google Ads was added, connect again.
 
 ### Why the email buttons open a confirm page
 

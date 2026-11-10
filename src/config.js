@@ -59,6 +59,15 @@ export const config = {
     oauthClientSecret: env('GOOGLE_OAUTH_CLIENT_SECRET', ''),
   },
 
+  googleAds: {
+    developerToken: env('GOOGLE_ADS_DEVELOPER_TOKEN', ''),
+    // Ad account(s) to read, digits only (dashes are removed): 1234567890,2345678901
+    customerIds: env('GOOGLE_ADS_CUSTOMER_IDS', '').split(',').map((s) => s.replace(/\D/g, '')).filter(Boolean),
+    // The Manager (MCC) account the developer token belongs to, if the ad accounts are linked under it.
+    loginCustomerId: env('GOOGLE_ADS_LOGIN_CUSTOMER_ID', '').replace(/\D/g, ''),
+    apiVersion: env('GOOGLE_ADS_API_VERSION', 'v26'),
+  },
+
   targetCpl: num('TARGET_CPL', 45),
   maxBudgetChangePct: num('MAX_BUDGET_CHANGE_PCT', 20),
   dailySpendCap: num('DAILY_SPEND_CAP', 600),

@@ -88,6 +88,28 @@ function suggestForAccount(acct, cur, prev) {
       });
     }
   }
+  // 7) Google Ads: search terms that cost money and never produced a lead → block them.
+  if (acct.platform === 'google') {
+    const floor = Math.max(10, target * 0.5);
+    const rows = db.prepare(`SELECT s.campaign_id, s.term, s.cost, s.clicks FROM search_terms s
+      JOIN campaigns c ON c.id = s.campaign_id WHERE c.account_id = ? AND c.status = 'ACTIVE' AND s.conversions = 0 AND s.cost >= ?
+      ORDER BY s.cost DESC`).all(acct.id, floor);
+    const byCampaign = new Map();
+    for (const r of rows) {
+      if (!byCampaign.has(r.campaign_id)) byCampaign.set(r.campaign_id, []);
+      if (byCampaign.get(r.campaign_id).length < 8) byCampaign.get(r.campaign_id).push(r);
+    }
+    for (const [campaignId, terms] of byCampaign) {
+      const name = current.find((c) => c.id === campaignId)?.name ?? 'campaign';
+      const total = terms.reduce((s, t) => s + t.cost, 0);
+      out.push({
+        campaign_id: campaignId, type: 'negatives', severity: 'warning',
+        title: `Block ${terms.length} search term${terms.length > 1 ? 's' : ''} wasting money in "${name}"`,
+        reason: `In the last 30 days these searches cost ${money(total)} with no leads: ${terms.map((t) => `"${t.term}" (${money(t.cost)})`).join(', ')}. Approving adds them as exact-match negative keywords so your ads stop showing for them.`,
+        action: { kind: 'negatives', terms: terms.map((t) => t.term) },
+      });
+    }
+  }
   return out;
 }
 

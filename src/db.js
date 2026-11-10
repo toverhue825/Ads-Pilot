@@ -112,6 +112,18 @@ if (!hasCol('accounts', 'context')) db.exec("ALTER TABLE accounts ADD COLUMN con
 // Brand facts: specifics the AI may state in ads (turnaround, warranty, delivery, financing…).
 if (!hasCol('accounts', 'facts')) db.exec("ALTER TABLE accounts ADD COLUMN facts TEXT NOT NULL DEFAULT ''");
 
+// Multi-platform: Facebook (meta) and Google Ads (google).
+if (!hasCol('accounts', 'platform')) db.exec("ALTER TABLE accounts ADD COLUMN platform TEXT NOT NULL DEFAULT 'meta'");
+if (!hasCol('campaigns', 'ext')) db.exec("ALTER TABLE campaigns ADD COLUMN ext TEXT"); // platform-specific JSON (e.g. Google budget resource)
+db.exec(`
+  -- Google Ads search terms (last 30 days) for "wasted spend" suggestions.
+  CREATE TABLE IF NOT EXISTS search_terms (
+    campaign_id TEXT NOT NULL, term TEXT NOT NULL,
+    cost REAL NOT NULL, clicks INTEGER NOT NULL, conversions REAL NOT NULL, updated_at TEXT,
+    PRIMARY KEY (campaign_id, term)
+  );
+`);
+
 // One line for prompts: what the brand is + the facts it can safely claim.
 export function brandBrief(acct) {
   const about = acct?.context?.trim() || '(not provided)';

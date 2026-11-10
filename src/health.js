@@ -9,6 +9,7 @@ export const COMPONENTS = {
   email: 'Email sending',
   drive: 'Google Drive content library',
   gbp: 'Google Business Profile',
+  gads: 'Google Ads connection',
 };
 
 const read = (name) => { try { return JSON.parse(getMeta(`health_${name}`) ?? 'null'); } catch { return null; } };
@@ -35,6 +36,11 @@ export function explain(name, err) {
   if (name === 'drive') {
     if (err?.status === 404 || /not found/i.test(msg)) return { msg: "The dashboard can't see the Drive folder.", fix: 'Share the folder with the service account email shown in the Library tab (Viewer is enough), and check GOOGLE_DRIVE_FOLDER_ID in Render.', urgent: true };
     return { msg: `Drive sync failed: ${msg.slice(0, 200)}`, fix: 'Check GOOGLE_SERVICE_ACCOUNT_JSON and that the Drive API is enabled in your Google Cloud project.', urgent: false };
+  }
+  if (name === 'gads') {
+    if (/invalid_grant|revoked|not connected/i.test(msg)) return { msg: 'The Google sign-in expired or was removed.', fix: 'Open the Google Business tab and click Connect with Google again.', urgent: true };
+    if (/developer token|test accounts/i.test(msg)) return { msg: 'The Google Ads developer token is not approved for live accounts yet.', fix: 'In your Google Ads Manager account → Admin → API Center, apply for Basic access. Google reviews it in a few days.', urgent: false };
+    return { msg: msg.slice(0, 240), fix: 'Check GOOGLE_ADS_CUSTOMER_IDS and GOOGLE_ADS_LOGIN_CUSTOMER_ID in Render, and that the Google account you connected can see the ad account.', urgent: false };
   }
   if (name === 'gbp') {
     if (/invalid_grant|revoked|expired/i.test(msg)) return { msg: 'The Google Business Profile connection expired or was removed.', fix: 'Open the Google Business tab and click Connect again.', urgent: true };

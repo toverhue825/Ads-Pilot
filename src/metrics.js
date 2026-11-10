@@ -26,7 +26,7 @@ export function derive(t) {
 }
 
 const TOTALS = (p = '') => `SUM(${p}spend) AS spend, SUM(${p}leads) AS leads, SUM(${p}clicks) AS clicks,
-  SUM(${p}impressions) AS impressions, AVG(${p}frequency) AS frequency`;
+  SUM(${p}impressions) AS impressions, AVG(NULLIF(${p}frequency, 0)) AS frequency`; // Google Ads has no frequency (stored as 0)
 
 // accountId = null means all accounts.
 const acctFilter = (accountId) => (accountId ? 'AND campaign_id IN (SELECT id FROM campaigns WHERE account_id = ?)' : '');

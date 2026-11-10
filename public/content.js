@@ -142,10 +142,10 @@ async function loadGoogle() {
       <p class="muted">Needs a Google sign-in app (<code>GOOGLE_OAUTH_CLIENT_ID</code> / <code>GOOGLE_OAUTH_CLIENT_SECRET</code> in Render) and Google's approval for Business Profile API access. See the README's Google setup section.</p></div></section>`;
   } else if (!g.connected) {
     setup.innerHTML = `<section class="card"><div class="empty"><div class="big">📍</div><b>Connect your Google Business Profile</b>
-      <p class="muted">Sign in with the Google account that manages your Business Profile. You'll approve "Manage your business listings" once.</p>
+      <p class="muted">Sign in with the Google account that manages your Business Profile <b>and</b> your Google Ads. One sign-in connects both; you'll approve "Manage your business listings" and "Manage your AdWords campaigns" once.</p>
       <a class="btn btn-primary" href="/google/connect">Connect with Google</a></div></section>`;
   } else if (!g.location) {
-    setup.innerHTML = `<section class="card"><div class="card-head"><h2>Pick your location</h2></div><div id="gbpLocs"><p class="muted">Loading your locations…</p></div></section>`;
+    setup.innerHTML = `<section class="card"><div class="card-head"><h2>Pick your Business Profile location</h2><span class="sub">Google Ads works without this; its campaigns show on the Ads tab.</span></div><div id="gbpLocs"><p class="muted">Loading your locations…</p></div></section>`;
     const r = await A().api('/api/gbp/locations');
     $('#gbpLocs').innerHTML = !r.ok ? `<p class="error">${e(r.error)}</p>`
       : r.locations.length ? r.locations.map((l, i) => `<button class="btn btn-ghost loc" type="button" data-loc="${i}"><b>${e(l.title)}</b> <span class="muted">${e(l.address)}</span></button>`).join('')

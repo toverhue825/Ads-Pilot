@@ -208,7 +208,7 @@ function renderCampaigns(rows) {
   $('#campaigns').innerHTML = `<thead><tr><th>Campaign</th><th>Health</th><th class="num">Budget/day</th><th class="num">Spend</th>
     <th class="num">Leads</th><th class="num">Cost/lead</th><th class="num">CTR</th><th class="num">Click→lead</th><th class="num">Freq.</th></tr></thead>
     <tbody>${rows.map((c) => `<tr>
-      <td class="name">${esc(c.name)}${showBrand ? `<div class="brand-tag" style="margin:2px 0 0">${esc(names.get(c.account_id)?.name)}</div>` : ''}</td><td>${cplChip(c)}</td>
+      <td class="name"><span class="plat ${c.id.startsWith('g_') ? 'g' : 'f'}" title="${c.id.startsWith('g_') ? 'Google Ads' : 'Facebook / Instagram'}">${c.id.startsWith('g_') ? 'G' : 'f'}</span>${esc(c.name)}${showBrand ? `<div class="brand-tag" style="margin:2px 0 0">${esc(names.get(c.account_id)?.name)}</div>` : ''}</td><td>${cplChip(c)}</td>
       <td class="num">${c.daily_budget == null ? '<span class="muted" title="Lifetime budget or none: budget suggestions skipped">–</span>'
         : c.budget_level === 'adsets' ? `${fmt.money(c.daily_budget)}<div class="brand-tag" title="Total of this campaign's ad set budgets">across ad sets</div>` : fmt.money(c.daily_budget)}</td>
       <td class="num">${fmt.money(c.spend)}</td><td class="num">${fmt.int(c.leads)}</td><td class="num"><b>${fmt.money(c.cpl)}</b></td>
